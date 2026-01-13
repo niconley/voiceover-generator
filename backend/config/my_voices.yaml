@@ -1,0 +1,199 @@
+voices:
+  adam_-_dominant,_firm:
+    category: premade
+    description: A bright tenor pitch that immediately cuts through. The delivery
+      is brash and openly confident, speaking with unwavering certainty and a slightly
+      aggressive self-assurance.
+    id: pNInz6obpgDQGcFmaJgB
+    name: Adam - Dominant, Firm
+  alice_-_clear,_engaging_educator:
+    category: premade
+    description: Clear and engaging, friendly woman with a British accent suitable
+      for e-learning.
+    id: Xb7hH8MSUJpSbSDYk0k2
+    name: Alice - Clear, Engaging Educator
+  allison_-_energetic,_clear_and_bubbly:
+    category: professional
+    description: Allison - millennial - Fun millennial female voice. Perfect for news,
+      commercials, audiobooks, and relatable characters.
+    id: xctasy8XvGp2cVO9HL9k
+    name: Allison - Energetic, Clear and Bubbly
+  andy_og_dr_voice:
+    category: cloned
+    description: ''
+    id: olHNx3OagX3lXF4mVJph
+    name: Andy OG DR voice
+  andys_voice_clone:
+    category: cloned
+    description: ''
+    id: N7jfB5SmXpxTDG1lMvGr
+    name: Andys Voice Clone
+  bill_-_wise,_mature,_balanced:
+    category: premade
+    description: Friendly and comforting voice ready to narrate your stories.
+    id: pqHfZKP75CvOlQylNhV4
+    name: Bill - Wise, Mature, Balanced
+  brian_-_deep,_resonant_and_comforting:
+    category: premade
+    description: Middle-aged man with a resonant and comforting tone. Great for narrations
+      and advertisements.
+    id: nPczCjzI2devNBz1zQrb
+    name: Brian - Deep, Resonant and Comforting
+  callum_-_husky_trickster:
+    category: premade
+    description: Deceptively gravelly, yet unsettling edge.
+    id: N2lVS1w4EtoT3dr4eOWO
+    name: Callum - Husky Trickster
+  charlie_-_deep,_confident,_energetic:
+    category: premade
+    description: A young Australian male with a confident and energetic voice.
+    id: IKne3meq5aSn9XLyUdCD
+    name: Charlie - Deep, Confident, Energetic
+  chris_-_charming,_down-to-earth:
+    category: premade
+    description: Natural and real, this down-to-earth voice is great across many use-cases.
+    id: iP95p4xoKVk53GoZ742B
+    name: Chris - Charming, Down-to-Earth
+  countdown_casey_-_top_40_dj:
+    category: professional
+    description: Vintage FM radio disc jockey character by Hey Its Brad. Old school,
+      throwback, parody content. Comedy, animation, video games or background voice
+      to add ambience to a scene. American male.
+    id: mKoqwDP2laxTdq1gEgU6
+    name: Countdown Casey - Top 40 DJ
+  daniel_-_steady_broadcaster:
+    category: premade
+    description: A strong voice perfect for delivering a professional broadcast or
+      news story.
+    id: onwK4e9ZLuTAKqWW03F9
+    name: Daniel - Steady Broadcaster
+  dennis_-_engaging_radio_host:
+    category: professional
+    description: Promo Guy - Radio TV Serious - News, Top 40, Rock & Alternative.
+      Imaging voice by Hey Its Brad. Movie trailers. Concert and stadium announcements.
+      Nightclub commercials. Podcast or social media advertisements. American male.
+    id: QTGiyJvep6bcx4WD1qAq
+    name: Dennis - Engaging Radio Host
+  eric_-_smooth,_trustworthy:
+    category: premade
+    description: A smooth tenor pitch from a man in his 40s - perfect for agentic
+      use cases.
+    id: cjVigY5qzO86Huf0OWal
+    name: Eric - Smooth, Trustworthy
+  frederic_-_professional_and_confident:
+    category: professional
+    description: AlphaVox | Executive Leadership Voice - A charismatic and articulate
+      male voice with a clear and steady tone, perfect for official announcements,
+      leadership speeches, and corporate narrations. Its timbre conveys confidence
+      and professionalism, making it ideal for CEO speeches, town halls, and executive
+      communications.
+    id: oziFLKtaxVDHQAh7o45V
+    name: Frederic - Professional and Confident
+  george_-_warm,_captivating_storyteller:
+    category: premade
+    description: Warm resonance that instantly captivates listeners.
+    id: JBFqnCBsd6RMkjVDRZzb
+    name: George - Warm, Captivating Storyteller
+  giselle_marie_-_positive_and_engaging:
+    category: professional
+    description: Giselle Marie - Millennial American female with a positive, enthusiastic
+      and engaging tone. Perfect for training, coaching, and uplifting documentary
+      style projects.
+    id: XN5MUfNpmfCV6rvigVhs
+    name: Giselle Marie - Positive and Engaging
+  halley:
+    category: professional
+    description: Young American female voice, clean and easy to listen to. Perfect
+      for Youtube videos, social media content, explainer videos, advertisements,
+      tours, and educational content.
+    id: eBvoGh8YGJn1xokno71w
+    name: Halley
+  hank_-_deep_and_engaging_narrator:
+    category: professional
+    description: Hank - A natural voice great for commercials, video games, and narration
+      - Hank's deep, rich voice is reminiscent of famous movie trailer actors like
+      James Earl Jones and Don LaFontaine. His voice is currently one of the top social
+      media voices in the world.
+    id: 6F5Zhi321D3Oq7v1oNT4
+    name: Hank - Deep and Engaging Narrator
+  harry_-_fierce_warrior:
+    category: premade
+    description: An animated warrior ready to charge forward.
+    id: SOYHLrjzK2X1ezoPC6cr
+    name: Harry - Fierce Warrior
+  hope_-_upbeat_and_clear:
+    category: professional
+    description: ''
+    id: tnSpp4vdxKPjI9w0GnoV
+    name: Hope - upbeat and clear
+  jessica_-_playful,_bright,_warm:
+    category: premade
+    description: Young and popular, this playful American female voice is perfect
+      for trendy content.
+    id: cgSgspJ2msm6clMCkdW9
+    name: Jessica - Playful, Bright, Warm
+  johnny_dynamite_-_80s_radio_dj:
+    category: professional
+    description: FM disc jockey character. Vintage 1950s or 1980s announcer. Male
+      American Top 40, Rock or Oldies onair music station host. Great for animation,
+      video games and comedy content. A funny Hey Its Brad voice.
+    id: CeNX9CMwmxDxUF5Q2Inm
+    name: Johnny Dynamite - 80s Radio DJ
+  laura_-_enthusiast,_quirky_attitude:
+    category: premade
+    description: This young adult female voice delivers sunny enthusiasm with a quirky
+      attitude.
+    id: FGY2WhTYpPnrIDTdsKH5
+    name: Laura - Enthusiast, Quirky Attitude
+  liam_-_energetic,_social_media_creator:
+    category: premade
+    description: A young adult with energy and warmth - suitable for reels and shorts.
+    id: TX3LPaxmHKxFdv7VOQHJ
+    name: Liam - Energetic, Social Media Creator
+  lily_-_velvety_actress:
+    category: premade
+    description: Velvety British female voice delivers news and narrations with warmth
+      and clarity.
+    id: pFZP5JQG7iQjIQuC4Bku
+    name: Lily - Velvety Actress
+  "l\xE9o_-_gentle_and_enthusiastic":
+    category: professional
+    description: "L\xE9o - Quebec French - Middle aged male with a gentle, enthusiastic,\
+      \ reassuring, smiling tone in voice. Perfect for Commercials."
+    id: 2dxaXwaYxEEIDjoHj0V4
+    name: "L\xE9o - Gentle and Enthusiastic"
+  matilda_-_knowledgable,_professional:
+    category: premade
+    description: A professional woman with a pleasing alto pitch. Suitable for many
+      use cases.
+    id: XrExE9yKIg1WjnnlVkGX
+    name: Matilda - Knowledgable, Professional
+  promo_guy_-_upbeat_radio_host:
+    category: professional
+    description: Promo Guy - Radio TV Friendly - News, Top 40, Rock & Alternative.
+      Imaging voice by Hey Its Brad. Movie trailers. Concert and stadium announcements.
+      Upbeat fun commercials. Podcast or social media advertisements. American male.
+      Use with ElevenLabs companion voice, Promo Guy Serious.
+    id: 34lPwSZ54D8fWbX1aHzk
+    name: Promo Guy - Upbeat Radio Host
+  river_-_relaxed,_neutral,_informative:
+    category: premade
+    description: A relaxed, neutral voice ready for narrations or conversational projects.
+    id: SAz9YHcvj6GT2YYXdXww
+    name: River - Relaxed, Neutral, Informative
+  roger_-_laid-back,_casual,_resonant:
+    category: premade
+    description: Easy going and perfect for casual conversations.
+    id: CwhRBWXzGAHq8TQ4Fs17
+    name: Roger - Laid-Back, Casual, Resonant
+  sarah_-_mature,_reassuring,_confident:
+    category: premade
+    description: Young adult woman with a confident and warm, mature quality and a
+      reassuring, professional tone.
+    id: EXAVITQu4vr4xnSDxMaL
+    name: Sarah - Mature, Reassuring, Confident
+  will_-_relaxed_optimist:
+    category: premade
+    description: Conversational and laid back.
+    id: bIHbv24MWmeRgasZH58o
+    name: Will - Relaxed Optimist

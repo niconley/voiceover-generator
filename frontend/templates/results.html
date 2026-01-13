@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Batch Results - Bulk Voiceover Generator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Batch Results</h1>
+            <p>Batch ID: <code>{{ batch_id }}</code></p>
+            <a href="/" class="btn-secondary">New Batch</a>
+        </header>
+
+        <main>
+            <div class="loading-section" id="loadingSection">
+                <p>Loading results...</p>
+            </div>
+
+            <div class="results-section" id="resultsSection" style="display: none;">
+                <div class="summary-cards">
+                    <div class="card card-completed">
+                        <h3>Completed</h3>
+                        <p class="card-number" id="completedCount">0</p>
+                        <a href="/download/{{ batch_id }}/completed" class="card-link">Download</a>
+                    </div>
+
+                    <div class="card card-review">
+                        <h3>Needs Review</h3>
+                        <p class="card-number" id="reviewCount">0</p>
+                        <a href="/download/{{ batch_id }}/needs_review" class="card-link">Download</a>
+                    </div>
+
+                    <div class="card card-failed">
+                        <h3>Failed</h3>
+                        <p class="card-number" id="failedCount">0</p>
+                        <a href="/download/{{ batch_id }}/failed" class="card-link">Download</a>
+                    </div>
+
+                    <div class="card card-total">
+                        <h3>Total Items</h3>
+                        <p class="card-number" id="totalCount">0</p>
+                    </div>
+                </div>
+
+                <div class="download-section">
+                    <h2>Downloads</h2>
+                    <div class="download-buttons">
+                        <a href="/download/{{ batch_id }}/all" class="btn-primary">
+                            Download All Files (ZIP)
+                        </a>
+                        <a href="/download/{{ batch_id }}/report" class="btn-secondary">
+                            Download Report (CSV)
+                        </a>
+                    </div>
+                </div>
+
+                <div class="details-section">
+                    <h2>Detailed Results</h2>
+
+                    <div class="filter-tabs">
+                        <button class="tab-btn active" onclick="filterResults('all')">
+                            All
+                        </button>
+                        <button class="tab-btn" onclick="filterResults('completed')">
+                            Completed
+                        </button>
+                        <button class="tab-btn" onclick="filterResults('needs_review')">
+                            Needs Review
+                        </button>
+                        <button class="tab-btn" onclick="filterResults('failed')">
+                            Failed
+                        </button>
+                    </div>
+
+                    <div class="results-table-container">
+                        <table class="results-table" id="resultsTable">
+                            <thead>
+                                <tr>
+                                    <th>Filename</th>
+                                    <th>Status</th>
+                                    <th>Duration</th>
+                                    <th>Target</th>
+                                    <th>Diff</th>
+                                    <th>Attempts</th>
+                                    <th>Accuracy</th>
+                                    <th>QC Score</th>
+                                    <th>Issues</th>
+                                </tr>
+                            </thead>
+                            <tbody id="resultsTableBody">
+                                <!-- Results will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="error-section" id="errorSection" style="display: none;">
+                <h2>Error</h2>
+                <p id="errorMessage"></p>
+                <a href="/" class="btn-primary">Back to Home</a>
+            </div>
+        </main>
+
+        <footer>
+            <p>Powered by ElevenLabs API</p>
+        </footer>
+    </div>
+
+    <script>
+        const batchId = '{{ batch_id }}';
+        let allResults = [];
+        let currentFilter = 'all';
+
+        // Load results on page load
+        window.addEventListener('load', loadResults);
+
+        async function loadResults() {
+            try {
+                const response = await fetch(`/results/${batchId}`);
+
+                if (!response.ok) {
+                    throw new Error('Failed to load results');
+                }
+
+                const data = await response.json();
+
+                if (data.processing) {
+                    // Still processing, check back
+                    setTimeout(loadResults, 2000);
+                    return;
+                }
+
+                // Store results
+                allResults = data.results;
+
+                // Update summary cards
+                document.getElementById('completedCount').textContent = data.completed;
+                document.getElementById('reviewCount').textContent = data.needs_review;
+                document.getElementById('failedCount').textContent = data.failed;
+                document.getElementById('totalCount').textContent = data.total_items;
+
+                // Populate table
+                populateTable(allResults);
+
+                // Show results section
+                document.getElementById('loadingSection').style.display = 'none';
+                document.getElementById('resultsSection').style.display = 'block';
+
+            } catch (error) {
+                showError(error.message);
+            }
+        }
+
+        function populateTable(results) {
+            const tbody = document.getElementById('resultsTableBody');
+            tbody.innerHTML = '';
+
+            results.forEach(result => {
+                const row = document.createElement('tr');
+                row.className = `status-${result.status.replace('_', '-')}`;
+
+                const statusBadge = getStatusBadge(result.status);
+                const durationDiff = result.duration_diff !== null
+                    ? (result.duration_diff >= 0 ? '+' : '') + result.duration_diff.toFixed(2)
+                    : '-';
+
+                // Format QC score with color coding
+                let qcScoreHtml = '-';
+                if (result.llm_qc_score !== null && result.llm_qc_score !== undefined) {
+                    const score = result.llm_qc_score;
+                    const qcStatus = result.llm_qc_status || 'unknown';
+                    let scoreClass = '';
+
+                    if (qcStatus === 'pass') {
+                        scoreClass = 'qc-pass';
+                    } else if (qcStatus === 'flag') {
+                        scoreClass = 'qc-flag';
+                    } else if (qcStatus === 'fail') {
+                        scoreClass = 'qc-fail';
+                    }
+
+                    qcScoreHtml = `<span class="${scoreClass}">${score}/100</span>`;
+                }
+
+                // Combine all issues with better formatting
+                let allIssues = result.issues || '';
+                if (result.llm_qc_issues && result.llm_qc_issues.length > 0) {
+                    const qcIssues = result.llm_qc_issues.join('; ');
+                    if (allIssues && allIssues !== '-') {
+                        allIssues = `${allIssues}<br><strong>LLM QC:</strong> ${qcIssues}`;
+                    } else {
+                        allIssues = `<strong>LLM QC:</strong> ${qcIssues}`;
+                    }
+                }
+                if (!allIssues || allIssues === '') allIssues = '<span style="color: #10B981;">No issues</span>';
+
+                row.innerHTML = `
+                    <td>${result.filename}</td>
+                    <td>${statusBadge}</td>
+                    <td>${result.final_duration !== null ? result.final_duration.toFixed(2) + 's' : '-'}</td>
+                    <td>${result.target_duration !== null ? result.target_duration.toFixed(2) + 's' : '-'}</td>
+                    <td class="${result.duration_diff > 0.3 || result.duration_diff < -0.3 ? 'text-warning' : ''}">${durationDiff}s</td>
+                    <td>${result.attempts}</td>
+                    <td>${result.verification_accuracy !== null ? result.verification_accuracy.toFixed(1) + '%' : '-'}</td>
+                    <td>${qcScoreHtml}</td>
+                    <td class="issues-cell">${allIssues}</td>
+                `;
+
+                tbody.appendChild(row);
+            });
+        }
+
+        function getStatusBadge(status) {
+            const badges = {
+                'completed': '<span class="badge badge-success">Completed</span>',
+                'needs_review': '<span class="badge badge-warning">Needs Review</span>',
+                'failed': '<span class="badge badge-error">Failed</span>'
+            };
+            return badges[status] || status;
+        }
+
+        function filterResults(filter) {
+            currentFilter = filter;
+
+            // Update active tab
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+
+            // Filter results
+            let filteredResults = allResults;
+            if (filter !== 'all') {
+                filteredResults = allResults.filter(r => r.status === filter);
+            }
+
+            populateTable(filteredResults);
+        }
+
+        function showError(message) {
+            document.getElementById('errorMessage').textContent = message;
+            document.getElementById('loadingSection').style.display = 'none';
+            document.getElementById('resultsSection').style.display = 'none';
+            document.getElementById('errorSection').style.display = 'block';
+        }
+    </script>
+</body>
+</html>

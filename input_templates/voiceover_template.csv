@@ -1,0 +1,4 @@
+script_text,target_duration,voice_id,voice_name,output_filename,stability,similarity_boost,style,speed,notes
+Welcome to our product. This is an amazing solution.,7.0,,Sarah,welcome.mp3,0.5,0.75,0.0,1.0,Landing page
+Limited time offer - act now and save fifty percent!,5.0,,Sarah,promo.mp3,0.6,0.8,0.2,1.0,Promo banner
+Call us today at one eight hundred five five five one two three four.,6.5,,Brian,call_to_action.mp3,0.5,0.75,0.0,1.0,Contact page

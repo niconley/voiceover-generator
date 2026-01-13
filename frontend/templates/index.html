@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bulk Voiceover Generator</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Bulk Voiceover Generator</h1>
+            <p>Generate commercial voiceovers with precise timing control</p>
+        </header>
+
+        <main>
+            <div class="upload-section" id="uploadSection">
+                <h2>Upload CSV File</h2>
+                <p>Upload a CSV or Excel file with your voiceover scripts and settings.</p>
+
+                <div class="dropzone" id="dropzone">
+                    <div class="dropzone-content">
+                        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="17 8 12 3 7 8"></polyline>
+                            <line x1="12" y1="3" x2="12" y2="15"></line>
+                        </svg>
+                        <p>Drag and drop your CSV file here</p>
+                        <p class="or-text">or</p>
+                        <button type="button" onclick="document.getElementById('fileInput').click()">
+                            Browse Files
+                        </button>
+                        <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" style="display: none;">
+                    </div>
+                </div>
+
+                <div class="file-info" id="fileInfo" style="display: none;">
+                    <h3>File Selected</h3>
+                    <p><strong>Filename:</strong> <span id="fileName"></span></p>
+                    <p><strong>Total Items:</strong> <span id="totalItems"></span></p>
+                    <p><strong>Valid Items:</strong> <span id="validItems"></span></p>
+                    <p><strong>Total Duration:</strong> <span id="totalDuration"></span>s</p>
+                    <button id="generateBtn" class="btn-primary">Generate Voiceovers</button>
+                </div>
+            </div>
+
+            <div class="progress-section" id="progressSection" style="display: none;">
+                <h2>Processing Batch</h2>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <p class="progress-text">
+                    <span id="progressCurrent">0</span> / <span id="progressTotal">0</span> items
+                </p>
+                <p class="status-text" id="statusText">Starting...</p>
+            </div>
+
+            <div class="error-section" id="errorSection" style="display: none;">
+                <h2>Error</h2>
+                <p id="errorMessage"></p>
+                <button onclick="location.reload()">Try Again</button>
+            </div>
+        </main>
+
+        <footer>
+            <p>Powered by ElevenLabs API | <a href="/input_templates/voiceover_template.csv">Download Template</a></p>
+        </footer>
+    </div>
+
+    <script>
+        let batchId = null;
+
+        // File input handling
+        const fileInput = document.getElementById('fileInput');
+        const dropzone = document.getElementById('dropzone');
+
+        fileInput.addEventListener('change', handleFileSelect);
+
+        // Drag and drop
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.classList.add('dragover');
+        });
+
+        dropzone.addEventListener('dragleave', () => {
+            dropzone.classList.remove('dragover');
+        });
+
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        });
+
+        function handleFileSelect(e) {
+            const files = e.target.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        }
+
+        function handleFile(file) {
+            // Validate file type
+            const validTypes = ['.csv', '.xlsx', '.xls'];
+            const fileExt = '.' + file.name.split('.').pop().toLowerCase();
+
+            if (!validTypes.includes(fileExt)) {
+                showError('Invalid file type. Please upload a CSV or Excel file.');
+                return;
+            }
+
+            // Upload file
+            uploadFile(file);
+        }
+
+        async function uploadFile(file) {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Upload failed');
+                }
+
+                // Store batch ID
+                batchId = data.batch_id;
+
+                // Display file info
+                displayFileInfo(data);
+
+            } catch (error) {
+                showError(error.message);
+            }
+        }
+
+        function displayFileInfo(data) {
+            document.getElementById('fileName').textContent = data.filename;
+            document.getElementById('totalItems').textContent = data.summary.total_items;
+            document.getElementById('validItems').textContent = data.summary.valid_items;
+            document.getElementById('totalDuration').textContent = data.summary.total_duration.toFixed(1);
+
+            document.getElementById('fileInfo').style.display = 'block';
+        }
+
+        // Generate button
+        document.getElementById('generateBtn').addEventListener('click', async () => {
+            if (!batchId) return;
+
+            try {
+                const response = await fetch(`/generate/${batchId}`, {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Generation failed');
+                }
+
+                // Show progress section
+                document.getElementById('uploadSection').style.display = 'none';
+                document.getElementById('progressSection').style.display = 'block';
+
+                // Start polling for progress
+                pollProgress();
+
+            } catch (error) {
+                showError(error.message);
+            }
+        });
+
+        async function pollProgress() {
+            try {
+                const response = await fetch(`/status/${batchId}`);
+                const data = await response.json();
+
+                // Update progress bar
+                if (data.total > 0) {
+                    const percent = (data.current / data.total) * 100;
+                    document.getElementById('progressFill').style.width = percent + '%';
+                    document.getElementById('progressCurrent').textContent = data.current;
+                    document.getElementById('progressTotal').textContent = data.total;
+                }
+
+                document.getElementById('statusText').textContent = data.message;
+
+                if (data.status === 'completed') {
+                    // Redirect to results page
+                    window.location.href = `/results/${batchId}/page`;
+                } else if (data.status === 'error') {
+                    showError(data.message);
+                } else {
+                    // Continue polling
+                    setTimeout(pollProgress, 1000);
+                }
+
+            } catch (error) {
+                showError(error.message);
+            }
+        }
+
+        function showError(message) {
+            document.getElementById('errorMessage').textContent = message;
+            document.getElementById('uploadSection').style.display = 'none';
+            document.getElementById('progressSection').style.display = 'none';
+            document.getElementById('errorSection').style.display = 'block';
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,31 @@
+# Core dependencies
+elevenlabs>=1.0.0
+anthropic>=0.40.0
+python-dotenv>=1.0.0
+pyyaml>=6.0
+
+# Audio processing
+pydub>=0.25.1
+librosa>=0.10.0
+soundfile>=0.12.1
+
+# Speech recognition
+openai-whisper>=20231117
+numpy>=1.24.0
+
+# Data handling
+pandas>=2.0.0
+openpyxl>=3.1.0
+
+# Web framework
+flask>=3.0.0
+flask-cors>=4.0.0
+
+# Utilities
+tqdm>=4.65.0
+click>=8.1.0
+python-Levenshtein>=0.21.0
+
+# Quality assurance
+pytest>=7.4.0
+pytest-cov>=4.1.0

@@ -1,0 +1,5 @@
+script_text,target_duration,voice_id,output_filename,stability,similarity_boost,style,speed,notes
+"Welcome to our product. This is an amazing solution that will transform your workflow.",10.0,EXAVITQu4vr4xnSDxMaL,welcome.mp3,0.5,0.75,0.0,1.0,Landing page intro
+"Limited time offer - act now and save fifty percent on all premium plans.",8.0,EXAVITQu4vr4xnSDxMaL,promo.mp3,0.6,0.8,0.2,1.0,Promotional banner
+"Call us today at one eight hundred five five five one two three four for a free consultation.",9.0,EXAVITQu4vr4xnSDxMaL,call_to_action.mp3,0.5,0.75,0.0,1.0,Contact page CTA
+"Thank you for choosing our service. We appreciate your business and look forward to serving you.",11.0,EXAVITQu4vr4xnSDxMaL,thank_you.mp3,0.5,0.75,0.0,1.0,Post-purchase message
