@@ -16,6 +16,7 @@ from backend.src.audio.quality_checker import QualityChecker
 from backend.src.verification.timing_adjuster import TimingAdjuster
 from backend.src.verification.speech_verifier import SpeechVerifier
 from backend.src.verification.llm_quality_checker import LLMQualityChecker
+from backend.src.verification.gemini_audio_qc import GeminiAudioQC
 from backend.src.workflow.input_parser import InputParser, VoiceoverItem
 from backend.src.workflow.output_manager import OutputManager, GenerationResult, BatchResult
 from backend.src.utils.logger import ProgressLogger
@@ -85,18 +86,31 @@ class VoiceoverOrchestrator:
             min_accuracy=self.config.MIN_VERIFICATION_ACCURACY
         )
 
-        # Initialize LLM quality checker if enabled
+        # Initialize LLM quality checker if enabled (text-based)
         self.llm_qc_enabled = self.config.ENABLE_LLM_QC and self.config.ANTHROPIC_API_KEY
         if self.llm_qc_enabled:
             self.llm_quality_checker = LLMQualityChecker(
                 api_key=self.config.ANTHROPIC_API_KEY,
                 model=self.config.CLAUDE_MODEL
             )
-            logger.info("LLM Quality Control enabled")
+            logger.info("LLM Quality Control (text-based) enabled")
         else:
             self.llm_quality_checker = None
             if not self.config.ANTHROPIC_API_KEY:
                 logger.warning("LLM QC disabled: ANTHROPIC_API_KEY not set")
+
+        # Initialize Gemini audio quality checker if enabled (audio-based)
+        self.audio_qc_enabled = self.config.ENABLE_AUDIO_QC and self.config.GOOGLE_API_KEY
+        if self.audio_qc_enabled:
+            self.gemini_audio_qc = GeminiAudioQC(
+                api_key=self.config.GOOGLE_API_KEY,
+                model=self.config.GEMINI_MODEL
+            )
+            logger.info("Audio Quality Control (Gemini) enabled")
+        else:
+            self.gemini_audio_qc = None
+            if not self.config.GOOGLE_API_KEY:
+                logger.warning("Audio QC disabled: GOOGLE_API_KEY not set")
 
         self.input_parser = InputParser()
 
@@ -358,6 +372,29 @@ class VoiceoverOrchestrator:
                         if llm_qc_result.issues:
                             logger.info(f"LLM QC Issues: {', '.join(llm_qc_result.issues)}")
 
+                    # Run Gemini audio quality control if enabled
+                    audio_qc_result = None
+                    if self.audio_qc_enabled:
+                        logger.info("Running Gemini audio quality control")
+                        audio_qc_result = self.gemini_audio_qc.analyze_audio(
+                            audio_data=audio_data,
+                            original_script=item.script_text,
+                            context={
+                                'target_duration': item.target_duration,
+                                'notes': item.notes
+                            }
+                        )
+
+                        # Log Audio QC results
+                        logger.info(
+                            f"Audio QC: {audio_qc_result.status.upper()} "
+                            f"(score: {audio_qc_result.score}/100)"
+                        )
+                        if audio_qc_result.strengths:
+                            logger.info(f"Audio QC Strengths: {', '.join(audio_qc_result.strengths)}")
+                        if audio_qc_result.issues:
+                            logger.info(f"Audio QC Issues: {', '.join(audio_qc_result.issues)}")
+
                     # Determine final status based on all checks
                     if quality_report.passed and verification_result.passed:
                         # Check LLM QC if available
@@ -372,6 +409,15 @@ class VoiceoverOrchestrator:
                                 status = 'completed'
                         else:
                             status = 'completed'
+
+                        # Also check Audio QC if available
+                        if audio_qc_result:
+                            if audio_qc_result.status == 'fail':
+                                status = 'needs_review'
+                                issues.append(f"Audio QC failed: {audio_qc_result.reasoning}")
+                            elif audio_qc_result.status == 'flag':
+                                status = 'needs_review'
+                                issues.append(f"Audio QC flagged for review: {audio_qc_result.reasoning}")
                     else:
                         status = 'needs_review'
                         if quality_report.issues:
@@ -402,7 +448,12 @@ class VoiceoverOrchestrator:
                         llm_qc_status=llm_qc_result.status if llm_qc_result else None,
                         llm_qc_score=llm_qc_result.score if llm_qc_result else None,
                         llm_qc_issues=llm_qc_result.issues if llm_qc_result else [],
-                        llm_qc_guidance=llm_qc_result.guidance if llm_qc_result else None
+                        llm_qc_guidance=llm_qc_result.guidance if llm_qc_result else None,
+                        audio_qc_status=audio_qc_result.status if audio_qc_result else None,
+                        audio_qc_score=audio_qc_result.score if audio_qc_result else None,
+                        audio_qc_issues=audio_qc_result.issues if audio_qc_result else [],
+                        audio_qc_strengths=audio_qc_result.strengths if audio_qc_result else [],
+                        audio_qc_guidance=audio_qc_result.guidance if audio_qc_result else None
                     )
 
                 else:
@@ -478,6 +529,23 @@ class VoiceoverOrchestrator:
                                     f"(score: {llm_qc_result.score}/100)"
                                 )
 
+                            # Run Gemini audio QC if enabled
+                            audio_qc_result = None
+                            if self.audio_qc_enabled:
+                                logger.info("Running Gemini audio quality control on best attempt")
+                                audio_qc_result = self.gemini_audio_qc.analyze_audio(
+                                    audio_data=best_attempt['audio_data'],
+                                    original_script=item.script_text,
+                                    context={
+                                        'target_duration': item.target_duration,
+                                        'notes': item.notes
+                                    }
+                                )
+                                logger.info(
+                                    f"Audio QC: {audio_qc_result.status.upper()} "
+                                    f"(score: {audio_qc_result.score}/100)"
+                                )
+
                             # Build issues list
                             attempt_issues = [f"Max retries exceeded, timing not achieved (best: {best_duration_diff:.2f}s off)"]
                             if quality_report.issues:
@@ -507,7 +575,12 @@ class VoiceoverOrchestrator:
                                 llm_qc_status=llm_qc_result.status if llm_qc_result else None,
                                 llm_qc_score=llm_qc_result.score if llm_qc_result else None,
                                 llm_qc_issues=llm_qc_result.issues if llm_qc_result else [],
-                                llm_qc_guidance=llm_qc_result.guidance if llm_qc_result else None
+                                llm_qc_guidance=llm_qc_result.guidance if llm_qc_result else None,
+                                audio_qc_status=audio_qc_result.status if audio_qc_result else None,
+                                audio_qc_score=audio_qc_result.score if audio_qc_result else None,
+                                audio_qc_issues=audio_qc_result.issues if audio_qc_result else [],
+                                audio_qc_strengths=audio_qc_result.strengths if audio_qc_result else [],
+                                audio_qc_guidance=audio_qc_result.guidance if audio_qc_result else None
                             )
                         else:
                             # No successful attempts at all

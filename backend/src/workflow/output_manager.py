@@ -31,11 +31,18 @@ class GenerationResult:
     audio_path: Optional[Path] = None
     error: Optional[str] = None
 
-    # LLM Quality Control fields
+    # LLM Quality Control fields (text-based)
     llm_qc_status: Optional[str] = None  # 'pass', 'flag', 'fail', or None if not checked
     llm_qc_score: Optional[float] = None  # 0-100 quality score
     llm_qc_issues: List[str] = field(default_factory=list)
     llm_qc_guidance: Optional[str] = None  # Regeneration guidance if failed
+
+    # Audio Quality Control fields (Gemini audio analysis)
+    audio_qc_status: Optional[str] = None  # 'pass', 'flag', 'fail', or None if not checked
+    audio_qc_score: Optional[float] = None  # 0-100 audio quality score
+    audio_qc_issues: List[str] = field(default_factory=list)
+    audio_qc_strengths: List[str] = field(default_factory=list)
+    audio_qc_guidance: Optional[str] = None
 
     def to_dict(self) -> Dict:
         """Convert to dictionary."""
@@ -54,7 +61,12 @@ class GenerationResult:
             'llm_qc_status': self.llm_qc_status,
             'llm_qc_score': self.llm_qc_score,
             'llm_qc_issues': self.llm_qc_issues,  # Keep as array for web UI
-            'llm_qc_guidance': self.llm_qc_guidance
+            'llm_qc_guidance': self.llm_qc_guidance,
+            'audio_qc_status': self.audio_qc_status,
+            'audio_qc_score': self.audio_qc_score,
+            'audio_qc_issues': self.audio_qc_issues,  # Keep as array for web UI
+            'audio_qc_strengths': self.audio_qc_strengths,  # Keep as array for web UI
+            'audio_qc_guidance': self.audio_qc_guidance
         }
 
 

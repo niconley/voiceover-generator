@@ -34,10 +34,15 @@ class Config:
     ELEVENLABS_TURBO_MODEL = "eleven_turbo_v2_5"  # Faster, less expressive
     ELEVENLABS_MULTILINGUAL_MODEL = "eleven_multilingual_v2"  # 30+ languages
 
-    # Claude API for LLM-powered quality control
+    # Claude API for LLM-powered quality control (text-based)
     ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
     CLAUDE_MODEL = "claude-sonnet-4-5-20250929"  # Claude Sonnet 4.5 (latest)
     ENABLE_LLM_QC = os.getenv("ENABLE_LLM_QC", "true").lower() == "true"
+
+    # Google Gemini API for audio-based quality control
+    GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+    GEMINI_MODEL = "gemini-2.0-flash-exp"  # Gemini 2.0 Flash (fast audio analysis)
+    ENABLE_AUDIO_QC = os.getenv("ENABLE_AUDIO_QC", "true").lower() == "true"
 
     # ==================== Audio Settings ====================
     AUDIO_FORMAT = "mp3"
@@ -106,7 +111,8 @@ class Config:
     LOG_FILE = LOGS_DIR / "generation.log"
 
     # ==================== Web Server Settings ====================
-    FLASK_PORT = int(os.getenv("FLASK_PORT", 5000))
+    # Use PORT for cloud deployment (Railway, Heroku) or FLASK_PORT for local
+    FLASK_PORT = int(os.getenv("PORT", os.getenv("FLASK_PORT", 5000)))
     FLASK_HOST = os.getenv("FLASK_HOST", "0.0.0.0")
     FLASK_DEBUG = os.getenv("FLASK_DEBUG", "False").lower() == "true"
 
