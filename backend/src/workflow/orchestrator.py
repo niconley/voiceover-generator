@@ -271,23 +271,36 @@ class VoiceoverOrchestrator:
         best_attempt = None
         best_duration_diff = float('inf')
 
+        # Track audio tags suggested by QC for retry
+        qc_suggested_tags = []
+
         while attempt < max_retries:
             attempt += 1
 
             try:
-                # Modify script text with timing guidance tags on retry attempts
+                # Modify script text with audio tags on retry attempts
                 adjusted_script_text = original_script_text
+                tags_to_add = []
+
                 if attempt > 1:
-                    # Add [slower] or [faster] tag based on previous attempt
-                    # This guides V3 model in addition to speed parameter
+                    # Add timing tags based on speed adjustment
                     if current_speed < 1.0:
-                        # Need to slow down = make longer
-                        adjusted_script_text = f"[slower] {original_script_text}"
-                        logger.info("Added [slower] audio tag to guide timing")
+                        tags_to_add.append("slower")
                     elif current_speed > 1.0:
-                        # Need to speed up = make shorter
-                        adjusted_script_text = f"[faster] {original_script_text}"
-                        logger.info("Added [faster] audio tag to guide timing")
+                        tags_to_add.append("faster")
+
+                    # Add QC-suggested tags from previous Audio QC failure
+                    if qc_suggested_tags:
+                        for tag in qc_suggested_tags:
+                            if tag not in tags_to_add:
+                                tags_to_add.append(tag)
+                        logger.info(f"Adding QC-suggested audio tags: {qc_suggested_tags}")
+
+                # Apply all tags to script
+                if tags_to_add:
+                    tags_prefix = ' '.join(f'[{tag}]' for tag in tags_to_add)
+                    adjusted_script_text = f"{tags_prefix} {original_script_text}"
+                    logger.info(f"Script with audio tags: {tags_prefix} ...")
 
                 logger.info(
                     f"Attempt {attempt}/{max_retries} for {item.output_filename} "
@@ -395,6 +408,22 @@ class VoiceoverOrchestrator:
                         if audio_qc_result.issues:
                             logger.info(f"Audio QC Issues: {', '.join(audio_qc_result.issues)}")
 
+                    # Check if Audio QC failed and we should retry with suggested tags
+                    should_retry_for_audio_qc = False
+                    if audio_qc_result and audio_qc_result.status == 'fail':
+                        if attempt < max_retries and audio_qc_result.suggested_audio_tags:
+                            # Audio QC failed with suggestions - retry with those tags
+                            qc_suggested_tags = audio_qc_result.suggested_audio_tags
+                            logger.info(
+                                f"Audio QC failed with suggestions: {qc_suggested_tags}. "
+                                f"Retrying with audio tags (attempt {attempt + 1}/{max_retries})"
+                            )
+                            should_retry_for_audio_qc = True
+
+                    if should_retry_for_audio_qc:
+                        # Continue loop to retry with QC-suggested tags
+                        continue
+
                     # Determine final status based on all checks
                     if quality_report.passed and verification_result.passed:
                         # Check LLM QC if available
@@ -453,7 +482,8 @@ class VoiceoverOrchestrator:
                         audio_qc_score=audio_qc_result.score if audio_qc_result else None,
                         audio_qc_issues=audio_qc_result.issues if audio_qc_result else [],
                         audio_qc_strengths=audio_qc_result.strengths if audio_qc_result else [],
-                        audio_qc_guidance=audio_qc_result.guidance if audio_qc_result else None
+                        audio_qc_guidance=audio_qc_result.guidance if audio_qc_result else None,
+                        audio_qc_suggested_tags=qc_suggested_tags
                     )
 
                 else:
@@ -580,7 +610,8 @@ class VoiceoverOrchestrator:
                                 audio_qc_score=audio_qc_result.score if audio_qc_result else None,
                                 audio_qc_issues=audio_qc_result.issues if audio_qc_result else [],
                                 audio_qc_strengths=audio_qc_result.strengths if audio_qc_result else [],
-                                audio_qc_guidance=audio_qc_result.guidance if audio_qc_result else None
+                                audio_qc_guidance=audio_qc_result.guidance if audio_qc_result else None,
+                                audio_qc_suggested_tags=qc_suggested_tags
                             )
                         else:
                             # No successful attempts at all

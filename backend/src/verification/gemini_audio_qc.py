@@ -22,6 +22,11 @@ class AudioQCResult:
     strengths: List[str]
     guidance: Optional[str] = None
     reasoning: str = ""
+    suggested_audio_tags: List[str] = None  # e.g., ['excited', 'faster']
+
+    def __post_init__(self):
+        if self.suggested_audio_tags is None:
+            self.suggested_audio_tags = []
 
 
 class GeminiAudioQC:
@@ -105,13 +110,13 @@ class GeminiAudioQC:
 
         except Exception as e:
             logger.error(f"Gemini audio QC failed: {e}")
-            # Return a default "pass" on error to avoid blocking generation
+            # Return "flag" on error so item goes to needs_review, not silent pass
             return AudioQCResult(
-                status='pass',
-                score=70.0,
+                status='flag',
+                score=0.0,
                 issues=[f"Audio QC error: {str(e)}"],
                 strengths=[],
-                reasoning="Error during audio analysis - defaulting to pass"
+                reasoning="Error during audio analysis - flagging for manual review"
             )
 
     def _build_prompt(
@@ -169,6 +174,19 @@ ISSUES:
 - [List any problems, or "None" if perfect]
 REASONING: [Brief explanation of your assessment]
 GUIDANCE: [If FAIL or FLAG, provide specific suggestions for improvement]
+AUDIO_TAGS: [If FAIL, suggest ElevenLabs audio tags to fix the issues, or "none" if pass]
+
+**Available Audio Tags for AUDIO_TAGS field:**
+- Emotion: [excited], [happy], [sad], [angry], [calm], [serious]
+- Style: [professional], [conversational], [narrative], [friendly], [authoritative]
+- Pacing: [slower], [faster]
+- Emphasis: [whisper]
+
+Example AUDIO_TAGS responses:
+- "excited, faster" (for dull delivery that needs energy)
+- "professional, slower" (for rushed unprofessional delivery)
+- "friendly, conversational" (for robotic/stiff delivery)
+- "none" (if no tags needed)
 """
         return prompt
 
@@ -183,6 +201,7 @@ GUIDANCE: [If FAIL or FLAG, provide specific suggestions for improvement]
         strengths = []
         reasoning = ""
         guidance = None
+        audio_tags = []
 
         current_section = None
 
@@ -218,6 +237,17 @@ GUIDANCE: [If FAIL or FLAG, provide specific suggestions for improvement]
                 current_section = 'guidance'
                 guidance = line.replace('GUIDANCE:', '').strip()
 
+            elif line.startswith('AUDIO_TAGS:'):
+                current_section = 'audio_tags'
+                tags_text = line.replace('AUDIO_TAGS:', '').strip().lower()
+                if tags_text and tags_text != 'none':
+                    # Parse comma-separated tags, clean up brackets
+                    audio_tags = [
+                        tag.strip().strip('[]')
+                        for tag in tags_text.split(',')
+                        if tag.strip() and tag.strip().lower() != 'none'
+                    ]
+
             elif line.startswith('-') and current_section:
                 item = line.lstrip('- ').strip()
                 if item and item.lower() != 'none':
@@ -241,5 +271,6 @@ GUIDANCE: [If FAIL or FLAG, provide specific suggestions for improvement]
             issues=issues if issues else [],
             strengths=strengths if strengths else [],
             guidance=guidance,
-            reasoning=reasoning.strip()
+            reasoning=reasoning.strip(),
+            suggested_audio_tags=audio_tags
         )

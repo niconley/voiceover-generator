@@ -43,6 +43,7 @@ class GenerationResult:
     audio_qc_issues: List[str] = field(default_factory=list)
     audio_qc_strengths: List[str] = field(default_factory=list)
     audio_qc_guidance: Optional[str] = None
+    audio_qc_suggested_tags: List[str] = field(default_factory=list)  # Tags used for retry
 
     def to_dict(self) -> Dict:
         """Convert to dictionary."""
@@ -66,7 +67,8 @@ class GenerationResult:
             'audio_qc_score': self.audio_qc_score,
             'audio_qc_issues': self.audio_qc_issues,  # Keep as array for web UI
             'audio_qc_strengths': self.audio_qc_strengths,  # Keep as array for web UI
-            'audio_qc_guidance': self.audio_qc_guidance
+            'audio_qc_guidance': self.audio_qc_guidance,
+            'audio_qc_suggested_tags': self.audio_qc_suggested_tags  # Tags used for retry
         }
 
 

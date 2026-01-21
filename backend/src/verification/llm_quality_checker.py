@@ -1,6 +1,8 @@
 """
-LLM-powered quality checker for voiceover transcriptions.
-Uses Claude API to analyze transcriptions for quality issues.
+LLM-powered transcription accuracy checker.
+Uses Claude API to compare original script text against Whisper transcription.
+NOTE: This checker only analyzes TEXT - it cannot hear the audio.
+For tone/pacing/delivery checks, use GeminiAudioQC which listens to the actual audio.
 """
 from dataclasses import dataclass
 from typing import List, Optional
@@ -24,7 +26,12 @@ class QCResult:
 
 class LLMQualityChecker:
     """
-    Uses Claude API to analyze voiceover transcriptions for quality issues.
+    Uses Claude API to compare original script against Whisper transcription.
+
+    This checker analyzes TEXT ONLY - it cannot hear the audio.
+    It checks for: missing words, wrong words, number/phone transcription errors.
+
+    For audio quality checks (tone, pacing, delivery), use GeminiAudioQC instead.
     """
 
     def __init__(
@@ -89,12 +96,12 @@ class LLMQualityChecker:
 
         except Exception as e:
             logger.error(f"LLM quality check failed: {e}")
-            # Return a default "pass" on error to avoid blocking generation
+            # Return "flag" on error so item goes to needs_review, not silent pass
             return QCResult(
-                status='pass',
-                score=75.0,
+                status='flag',
+                score=0.0,
                 issues=[f"QC analysis error: {str(e)}"],
-                reasoning="Error during analysis - defaulting to pass"
+                reasoning="Error during analysis - flagging for manual review"
             )
 
     def _build_prompt(
@@ -112,7 +119,9 @@ class LLMQualityChecker:
             if 'notes' in context and context['notes']:
                 context_str += f"\nNotes: {context['notes']}"
 
-        prompt = f"""You are a professional voiceover quality control analyst. Analyze this voiceover transcription and check for quality issues.
+        prompt = f"""You are a voiceover transcription accuracy checker. Your job is to compare the original script to what Whisper transcribed from the generated audio.
+
+IMPORTANT: You are analyzing TEXT only. You cannot hear the audio. Only check for issues that are visible in the transcription text.
 
 **Original Script:**
 {original_script}
@@ -121,46 +130,60 @@ class LLMQualityChecker:
 {transcription}
 {context_str}
 
-**Quality Checks to Perform:**
+**CRITICAL: Whisper Transcription Artifacts**
 
-1. **Accuracy**: Are all words and numbers correct? Compare transcription to original.
+Whisper converts speech to text, so many "differences" are just transcription format changes, NOT actual errors. Do NOT flag these as issues:
 
-2. **Phone Numbers**: Check if phone numbers sound natural with appropriate pauses.
-   - ❌ BAD: "eighteen hundred two seven nine four three two" (run together)
-   - ✅ GOOD: "eighteen hundred... two seven nine... four three two" (natural pauses)
+✅ ACCEPTABLE variations (same meaning, different format):
+- Numbers: "1-800" → "one eight hundred" or "eighteen hundred"
+- Percentages: "50%" → "fifty percent" or "fifty per cent"
+- Phone numbers: "1-800-279-4321" → "one eight hundred two seven nine four three two one"
+- Currencies: "$100" → "one hundred dollars" or "a hundred dollars"
+- Times: "9:30" → "nine thirty" or "half past nine"
+- Ordinals: "1st" → "first", "2nd" → "second"
+- Contractions: "don't" → "do not" (or vice versa)
+- Minor filler words: slight "uh", "um" added by TTS
+- Punctuation spoken: ellipsis as pause, etc.
 
-3. **Number Pronunciation**: Are numbers pronounced clearly and correctly?
-   - Check for: "fifty percent" vs "50%", "one eight hundred" vs "1-800"
+❌ ACTUAL errors to flag:
+- Wrong words entirely: "save" transcribed as "safe"
+- Missing words: entire phrases not spoken
+- Wrong numbers: "fifty" when script says "fifteen"
+- Wrong names: "John" transcribed as "Jon" or completely different name
+- Garbled/unintelligible: Whisper couldn't understand at all
 
-4. **Punctuation Effects**: Are pauses, emphasis, and tone appropriate for punctuation?
-   - Periods should have noticeable pauses
-   - Exclamation marks should have energy
-   - Commas should have slight pauses
+**Checks to Perform:**
 
-5. **Audio Tags**: If audio tags were used (like [excited], [professional]), does the transcription suggest they were effective?
+1. **Semantic Accuracy**: Is the MEANING preserved?
+   - All key information present (names, numbers, offers, CTAs)
+   - No wrong words that change meaning
 
-6. **Overall Clarity**: Is the speech clear, natural, and professional?
+2. **Number/Phone Verification**: Are digits CORRECT (not just formatted differently)?
+   - "1-800-279-4321" → "one eight hundred two seven nine four three two one" = PASS
+   - "1-800-279-4321" → "one eight hundred two seven nine four three two TWO" = FAIL (wrong digit)
+
+3. **Critical Content**: Are brand names, product names, and key terms correct?
+
+**DO NOT flag as errors:**
+- Format differences (written vs spoken numbers)
+- Minor transcription artifacts
+- Whisper's interpretation of how numbers/symbols are spoken
 
 **Response Format:**
-Respond ONLY with a valid JSON object in this exact format (no markdown, no extra text):
+Respond ONLY with valid JSON (no markdown):
 
 {{
   "status": "pass|flag|fail",
   "score": 0-100,
-  "issues": ["list of specific issues found, or empty array if none"],
-  "guidance": "specific regeneration guidance if status is fail, or null if pass/flag",
-  "reasoning": "brief explanation of the analysis"
+  "issues": ["list of specific text differences found, or empty array if none"],
+  "guidance": "what words/numbers need to be re-recorded if fail, otherwise null",
+  "reasoning": "brief explanation of text comparison"
 }}
 
 **Status Definitions:**
-- **pass**: No significant issues, voiceover is ready to use (score >= 85)
-- **flag**: Minor issues, recommend manual review (score 60-84)
-- **fail**: Critical issues, must regenerate (score < 60)
-
-**Guidance Examples (only if status is "fail"):**
-- "Add longer pauses between phone number segments. Say 'one eight hundred... pause... two seven nine... pause... four three two'"
-- "Emphasize the word 'free' to highlight the offer"
-- "Slow down when reading the phone number for clarity"
+- **pass** (score >= 85): Transcription matches script, minor acceptable variations only
+- **flag** (score 60-84): Some differences that may need human review
+- **fail** (score < 60): Significant words missing, wrong, or garbled
 
 Analyze now:"""
 
