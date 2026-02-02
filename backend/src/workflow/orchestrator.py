@@ -407,11 +407,12 @@ class VoiceoverOrchestrator:
                         if quality_report.issues:
                             issues.extend(quality_report.issues)
 
-                    # Save audio
+                    # Save audio with script text as metadata
                     audio_path = self.output_manager.save_audio(
                         audio_data,
                         item.output_filename,
-                        status=status
+                        status=status,
+                        script_text=item.script_text
                     )
 
                     # Create result
@@ -506,11 +507,12 @@ class VoiceoverOrchestrator:
                             if quality_report.issues:
                                 attempt_issues.extend(quality_report.issues)
 
-                            # Save best attempt with needs_review status
+                            # Save best attempt with needs_review status and script metadata
                             audio_path = self.output_manager.save_audio(
                                 best_attempt['audio_data'],
                                 item.output_filename,
-                                status='needs_review'
+                                status='needs_review',
+                                script_text=item.script_text
                             )
 
                             return GenerationResult(

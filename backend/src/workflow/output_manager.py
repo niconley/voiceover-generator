@@ -10,6 +10,8 @@ import shutil
 import json
 
 import pandas as pd
+from mutagen.mp3 import MP3
+from mutagen.id3 import ID3, COMM, TIT2, ID3NoHeaderError
 
 logger = logging.getLogger(__name__)
 
@@ -206,7 +208,8 @@ class OutputManager:
         self,
         audio_data: bytes,
         filename: str,
-        status: str = 'completed'
+        status: str = 'completed',
+        script_text: Optional[str] = None
     ) -> Path:
         """
         Save audio data directly to appropriate folder.
@@ -215,6 +218,7 @@ class OutputManager:
             audio_data: Audio data as bytes
             filename: Output filename
             status: Status ('completed', 'failed', 'needs_review')
+            script_text: Optional script text to embed as ID3 metadata
 
         Returns:
             Path to saved file
@@ -233,12 +237,59 @@ class OutputManager:
             with open(dest_path, 'wb') as f:
                 f.write(audio_data)
 
+            # Embed script text as ID3 metadata if provided
+            if script_text and filename.lower().endswith('.mp3'):
+                self._add_id3_metadata(dest_path, script_text, filename)
+
             logger.info(f"Saved audio: {dest_path}")
             return dest_path
 
         except Exception as e:
             logger.error(f"Failed to save audio {filename}: {e}")
             raise IOError(f"Cannot save audio file: {e}")
+
+    def _add_id3_metadata(
+        self,
+        file_path: Path,
+        script_text: str,
+        filename: str
+    ) -> None:
+        """
+        Add ID3 metadata tags to an MP3 file.
+
+        Args:
+            file_path: Path to the MP3 file
+            script_text: Script text to embed in comments
+            filename: Filename to use as title
+        """
+        try:
+            # Try to load existing ID3 tags, or create new ones
+            try:
+                audio = MP3(str(file_path), ID3=ID3)
+                if audio.tags is None:
+                    audio.add_tags()
+            except ID3NoHeaderError:
+                audio = MP3(str(file_path))
+                audio.add_tags()
+
+            # Add title (filename without extension)
+            title = Path(filename).stem
+            audio.tags.add(TIT2(encoding=3, text=title))
+
+            # Add script text as comment
+            audio.tags.add(COMM(
+                encoding=3,
+                lang='eng',
+                desc='Script',
+                text=script_text
+            ))
+
+            audio.save()
+            logger.debug(f"Added ID3 metadata to {filename}")
+
+        except Exception as e:
+            # Don't fail the save if metadata addition fails
+            logger.warning(f"Failed to add ID3 metadata to {filename}: {e}")
 
     def generate_report(
         self,
