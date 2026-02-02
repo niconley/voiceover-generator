@@ -85,8 +85,6 @@
                                     <th>Target</th>
                                     <th>Diff</th>
                                     <th>Attempts</th>
-                                    <th>Accuracy</th>
-                                    <th>Text QC</th>
                                     <th>Audio QC</th>
                                     <th>Issues</th>
                                 </tr>
@@ -169,24 +167,6 @@
                     ? (result.duration_diff >= 0 ? '+' : '') + result.duration_diff.toFixed(2)
                     : '-';
 
-                // Format Text QC score with color coding
-                let textQcScoreHtml = '-';
-                if (result.llm_qc_score !== null && result.llm_qc_score !== undefined) {
-                    const score = result.llm_qc_score;
-                    const qcStatus = result.llm_qc_status || 'unknown';
-                    let scoreClass = '';
-
-                    if (qcStatus === 'pass') {
-                        scoreClass = 'qc-pass';
-                    } else if (qcStatus === 'flag') {
-                        scoreClass = 'qc-flag';
-                    } else if (qcStatus === 'fail') {
-                        scoreClass = 'qc-fail';
-                    }
-
-                    textQcScoreHtml = `<span class="${scoreClass}">${score}/100</span>`;
-                }
-
                 // Format Audio QC score with color coding
                 let audioQcScoreHtml = '-';
                 if (result.audio_qc_score !== null && result.audio_qc_score !== undefined) {
@@ -207,16 +187,6 @@
 
                 // Combine all issues with better formatting
                 let allIssues = result.issues || '';
-
-                // Add LLM QC issues
-                if (result.llm_qc_issues && result.llm_qc_issues.length > 0) {
-                    const qcIssues = result.llm_qc_issues.join('; ');
-                    if (allIssues && allIssues !== '-') {
-                        allIssues = `${allIssues}<br><strong>Text QC:</strong> ${qcIssues}`;
-                    } else {
-                        allIssues = `<strong>Text QC:</strong> ${qcIssues}`;
-                    }
-                }
 
                 // Add Audio QC issues
                 if (result.audio_qc_issues && result.audio_qc_issues.length > 0) {
@@ -247,8 +217,6 @@
                     <td>${result.target_duration !== null ? result.target_duration.toFixed(2) + 's' : '-'}</td>
                     <td class="${result.duration_diff > 0.3 || result.duration_diff < -0.3 ? 'text-warning' : ''}">${durationDiff}s</td>
                     <td>${result.attempts}</td>
-                    <td>${result.verification_accuracy !== null ? result.verification_accuracy.toFixed(1) + '%' : '-'}</td>
-                    <td>${textQcScoreHtml}</td>
                     <td>${audioQcScoreHtml}</td>
                     <td class="issues-cell">${allIssues}</td>
                 `;

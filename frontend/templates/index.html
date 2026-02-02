@@ -15,8 +15,22 @@
 
         <main>
             <div class="upload-section" id="uploadSection">
-                <h2>Upload CSV File</h2>
-                <p>Upload a CSV or Excel file with your voiceover scripts and settings.</p>
+                <h2>Select Model & Upload CSV</h2>
+
+                <div class="model-selector">
+                    <label for="modelSelect"><strong>ElevenLabs Model:</strong></label>
+                    <select id="modelSelect" onchange="updateModelInfo()">
+                        <option value="eleven_multilingual_v2" selected>V2 Multilingual (Stable, Predictable)</option>
+                        <option value="eleven_v3">V3 (Expressive, Audio Tags)</option>
+                        <option value="eleven_turbo_v2_5">Turbo V2.5 (Fast)</option>
+                    </select>
+                    <div class="model-info" id="modelInfo">
+                        <p><strong>V2 Multilingual:</strong> Most stable and predictable output. Best for consistent commercial voiceovers.</p>
+                    </div>
+                    <p class="template-link">
+                        <a href="#" id="templateLink" onclick="downloadTemplate()">Download CSV Template</a> for selected model
+                    </p>
+                </div>
 
                 <div class="dropzone" id="dropzone">
                     <div class="dropzone-content">
@@ -63,12 +77,29 @@
         </main>
 
         <footer>
-            <p>Powered by ElevenLabs API | <a href="/input_templates/voiceover_template.csv">Download Template</a></p>
+            <p>Powered by ElevenLabs API</p>
         </footer>
     </div>
 
     <script>
         let batchId = null;
+        let selectedModel = 'eleven_multilingual_v2';
+
+        // Model info descriptions
+        const modelInfo = {
+            'eleven_multilingual_v2': '<strong>V2 Multilingual:</strong> Most stable and predictable output. Best for consistent commercial voiceovers. Supports 30+ languages.',
+            'eleven_v3': '<strong>V3:</strong> Most expressive with audio tags support ([excited], [slower], etc.). More variation between generations.',
+            'eleven_turbo_v2_5': '<strong>Turbo V2.5:</strong> Fastest generation. Good balance of speed and quality.'
+        };
+
+        function updateModelInfo() {
+            selectedModel = document.getElementById('modelSelect').value;
+            document.getElementById('modelInfo').innerHTML = '<p>' + modelInfo[selectedModel] + '</p>';
+        }
+
+        function downloadTemplate() {
+            window.location.href = '/template/' + selectedModel;
+        }
 
         // File input handling
         const fileInput = document.getElementById('fileInput');
@@ -119,6 +150,7 @@
         async function uploadFile(file) {
             const formData = new FormData();
             formData.append('file', file);
+            formData.append('model', selectedModel);
 
             try {
                 const response = await fetch('/upload', {
@@ -158,7 +190,11 @@
 
             try {
                 const response = await fetch(`/generate/${batchId}`, {
-                    method: 'POST'
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ model: selectedModel })
                 });
 
                 const data = await response.json();

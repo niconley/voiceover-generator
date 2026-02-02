@@ -1,0 +1,6 @@
+script_text,target_duration,voice_id,output_filename,stability,similarity_boost,style,speed,notes
+"Welcome to our product. This is an amazing solution that will transform your workflow.",10.0,EXAVITQu4vr4xnSDxMaL,welcome.mp3,0.5,0.5,0.5,1.0,Landing page intro
+"Limited time offer - act now and save fifty percent on all premium plans.",8.0,EXAVITQu4vr4xnSDxMaL,promo.mp3,0.5,0.5,0.5,1.0,Promotional banner
+"Call us today at 1-800-555-1234 for a free consultation.",9.0,EXAVITQu4vr4xnSDxMaL,call_to_action.mp3,0.5,0.5,0.5,1.0,Contact page CTA - phone number will be auto-formatted
+"Thank you for choosing our service. We appreciate your business.",8.0,EXAVITQu4vr4xnSDxMaL,thank_you.mp3,0.5,0.5,0.5,1.0,Post-purchase message
+

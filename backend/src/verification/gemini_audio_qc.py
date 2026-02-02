@@ -23,6 +23,7 @@ class AudioQCResult:
     guidance: Optional[str] = None
     reasoning: str = ""
     suggested_audio_tags: List[str] = None  # e.g., ['excited', 'faster']
+    phone_number_ok: Optional[bool] = None  # True/False/None if no phone number
 
     def __post_init__(self):
         if self.suggested_audio_tags is None:
@@ -125,9 +126,43 @@ class GeminiAudioQC:
         context: Optional[dict] = None
     ) -> str:
         """Build analysis prompt for Gemini."""
+        import re
 
         target_duration = context.get('target_duration') if context else None
         notes = context.get('notes', '') if context else ''
+
+        # Check if script contains a phone number
+        phone_pattern = r'(\d{3}[-.\s]?\d{3}[-.\s]?\d{4}|\d{1}[-.\s]?\d{3}[-.\s]?\d{3}[-.\s]?\d{4}|1[-.\s]?800[-.\s]?\d{3}[-.\s]?\d{4})'
+        has_phone_number = bool(re.search(phone_pattern, original_script)) or \
+                          'eight hundred' in original_script.lower() or \
+                          '800' in original_script
+
+        # Build phone number section if applicable
+        phone_section = ""
+        if has_phone_number:
+            phone_section = """
+🚨 **CRITICAL: PHONE NUMBER PACING** 🚨
+
+This script contains a phone number. This is the MOST IMPORTANT check.
+
+**Listen carefully for phone number delivery:**
+
+✅ GOOD phone number pacing:
+- Clear pause between number groups: "1-800... 555... 1234"
+- Each digit clearly pronounced
+- Listener could write down the number on first listen
+- Natural rhythm, not rushed
+- Slight emphasis on each group
+
+❌ BAD phone number pacing (MUST FAIL):
+- Numbers run together: "1800-555-1234" spoken as one blur
+- Rushed delivery where digits blend
+- No pauses between groups
+- Listener would need to replay to catch the number
+- Robotic monotone through the number
+
+**If phone number pacing is bad, this MUST be marked as FAIL regardless of other qualities.**
+"""
 
         prompt = f"""You are an expert audio quality analyst for AI-generated voiceovers. Analyze this audio file and provide a detailed quality assessment.
 
@@ -136,38 +171,40 @@ class GeminiAudioQC:
 
 {"**Target Duration:** " + str(target_duration) + " seconds" if target_duration else ""}
 {"**Context/Notes:** " + notes if notes else ""}
+{phone_section}
+**Analyze the following aspects{" (Phone number pacing is #1 priority)" if has_phone_number else ""}:**
 
-**Analyze the following aspects:**
-
-1. **Delivery & Tone:**
+{"1. **Phone Number Pacing** (CRITICAL - check this FIRST):" if has_phone_number else ""}
+{"   - Are there clear pauses between number groups?" if has_phone_number else ""}
+{"   - Could a listener write down the number on first listen?" if has_phone_number else ""}
+{"   - Is each digit clearly pronounced?" if has_phone_number else ""}
+{"" if has_phone_number else ""}
+{"2" if has_phone_number else "1"}. **Delivery & Tone:**
    - Does the tone match the script content? (e.g., excited, warm, professional, urgent)
    - Is the emotional delivery appropriate and natural?
    - Does it sound genuine or robotic?
 
-2. **Pacing & Rhythm:**
+{"3" if has_phone_number else "2"}. **Pacing & Rhythm:**
    - Is the speaking pace appropriate (not too fast/slow)?
    - Are there natural pauses and breathing?
    - Does it flow smoothly?
 
-3. **Vocal Quality:**
+{"4" if has_phone_number else "3"}. **Vocal Quality:**
    - Is pronunciation clear and accurate?
    - Are there any mispronunciations or glitches?
    - Is the voice quality consistent?
 
-4. **Audio Artifacts:**
+{"5" if has_phone_number else "4"}. **Audio Artifacts:**
    - Any robotic/synthetic sounds?
    - Unnatural transitions or cuts?
    - Audio glitches or distortions?
-
-5. **Overall Impression:**
-   - Would a listener perceive this as high-quality?
-   - Does it achieve its intended purpose?
 
 **Response Format:**
 Provide your analysis in this exact format:
 
 STATUS: [PASS/FLAG/FAIL]
 SCORE: [0-100]
+{"PHONE_NUMBER_OK: [YES/NO] (REQUIRED - did the phone number have proper pacing?)" if has_phone_number else ""}
 STRENGTHS:
 - [List 2-3 positive aspects]
 ISSUES:
@@ -187,6 +224,7 @@ Example AUDIO_TAGS responses:
 - "professional, slower" (for rushed unprofessional delivery)
 - "friendly, conversational" (for robotic/stiff delivery)
 - "none" (if no tags needed)
+{"" if not has_phone_number else "⚠️ REMEMBER: If phone number pacing is poor, STATUS must be FAIL and suggest 'slower' in AUDIO_TAGS."}
 """
         return prompt
 
@@ -202,6 +240,7 @@ Example AUDIO_TAGS responses:
         reasoning = ""
         guidance = None
         audio_tags = []
+        phone_number_ok = None  # None = no phone number in script
 
         current_section = None
 
@@ -248,6 +287,18 @@ Example AUDIO_TAGS responses:
                         if tag.strip() and tag.strip().lower() != 'none'
                     ]
 
+            elif line.startswith('PHONE_NUMBER_OK:'):
+                phone_text = line.replace('PHONE_NUMBER_OK:', '').strip().lower()
+                if 'yes' in phone_text:
+                    phone_number_ok = True
+                elif 'no' in phone_text:
+                    phone_number_ok = False
+                    # If phone number pacing is bad, ensure we flag/fail
+                    if status == 'pass':
+                        status = 'fail'
+                    if 'slower' not in audio_tags:
+                        audio_tags.append('slower')
+
             elif line.startswith('-') and current_section:
                 item = line.lstrip('- ').strip()
                 if item and item.lower() != 'none':
@@ -272,5 +323,6 @@ Example AUDIO_TAGS responses:
             strengths=strengths if strengths else [],
             guidance=guidance,
             reasoning=reasoning.strip(),
-            suggested_audio_tags=audio_tags
+            suggested_audio_tags=audio_tags,
+            phone_number_ok=phone_number_ok
         )

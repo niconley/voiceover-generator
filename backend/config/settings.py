@@ -34,15 +34,11 @@ class Config:
     ELEVENLABS_TURBO_MODEL = "eleven_turbo_v2_5"  # Faster, less expressive
     ELEVENLABS_MULTILINGUAL_MODEL = "eleven_multilingual_v2"  # 30+ languages
 
-    # Claude API for LLM-powered quality control (text-based)
-    ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
-    CLAUDE_MODEL = "claude-sonnet-4-5-20250929"  # Claude Sonnet 4.5 (latest)
-    ENABLE_LLM_QC = os.getenv("ENABLE_LLM_QC", "true").lower() == "true"
-
     # Google Gemini API for audio-based quality control
+    # NOTE: google.generativeai package is deprecated - Audio QC disabled until migrated to google-genai
     GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-    GEMINI_MODEL = "gemini-2.0-flash-exp"  # Gemini 2.0 Flash (fast audio analysis)
-    ENABLE_AUDIO_QC = os.getenv("ENABLE_AUDIO_QC", "true").lower() == "true"
+    GEMINI_MODEL = "gemini-1.5-pro"  # Gemini 1.5 Pro (audio analysis)
+    ENABLE_AUDIO_QC = False  # Disabled - library deprecated
 
     # ==================== Audio Settings ====================
     AUDIO_FORMAT = "mp3"
@@ -78,9 +74,6 @@ class Config:
     SILENCE_THRESHOLD_DB = -50.0  # Silence threshold in dB
     MIN_SILENCE_LEN = 500  # Minimum silence length in ms (ignore short pauses)
 
-    # Speech verification
-    MIN_VERIFICATION_ACCURACY = 95.0  # Minimum 95% word accuracy
-
     # Distortion detection
     DISTORTION_ZCR_THRESHOLD = 0.8  # Zero-crossing rate threshold
 
@@ -91,11 +84,6 @@ class Config:
 
     # Retryable HTTP status codes
     RETRYABLE_STATUS_CODES = [429, 500, 503, 504]
-
-    # ==================== Whisper Settings ====================
-    WHISPER_MODEL = os.getenv("WHISPER_MODEL", "base")
-    # Available models: tiny, base, small, medium, large
-    # base is recommended for balance of speed and accuracy
 
     # ==================== Output Settings ====================
     OUTPUT_DIR = OUTPUT_DIR
@@ -173,9 +161,6 @@ class Config:
         if not (0 <= cls.MAX_SILENCE_RATIO <= 1.0):
             errors.append("MAX_SILENCE_RATIO must be between 0 and 1")
 
-        if not (0 <= cls.MIN_VERIFICATION_ACCURACY <= 100):
-            errors.append("MIN_VERIFICATION_ACCURACY must be between 0 and 100")
-
         if cls.MAX_RETRIES < 1:
             errors.append("MAX_RETRIES must be at least 1")
 
@@ -200,9 +185,8 @@ Max Retries: {cls.MAX_RETRIES}
 Quality Thresholds:
   - Max Clipping: {cls.MAX_CLIPPING_PERCENTAGE}%
   - Max Silence: {cls.MAX_SILENCE_RATIO * 100}%
-  - Min Accuracy: {cls.MIN_VERIFICATION_ACCURACY}%
 
-Whisper Model: {cls.WHISPER_MODEL}
+Audio QC: {"Enabled" if cls.ENABLE_AUDIO_QC else "Disabled"} (Gemini)
 Output Directory: {OUTPUT_DIR}
 Log Level: {cls.LOG_LEVEL}
         """.strip()

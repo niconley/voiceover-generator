@@ -45,6 +45,7 @@ ALLOWED_EXTENSIONS = {'csv', 'xlsx', 'xls'}
 # Global storage for batch status (in production, use Redis or database)
 batch_status = {}
 batch_results = {}
+batch_models = {}  # Store model selection per batch
 
 
 def allowed_file(filename):
@@ -71,7 +72,8 @@ def process_batch_async(batch_id, input_file, orchestrator):
 
         result = orchestrator.process_batch(
             input_file=input_file,
-            progress_callback=progress_callback
+            progress_callback=progress_callback,
+            batch_id=batch_id
         )
 
         batch_status[batch_id] = {
@@ -103,6 +105,7 @@ def upload_file():
         return jsonify({'error': 'No file provided'}), 400
 
     file = request.files['file']
+    model = request.form.get('model', 'eleven_multilingual_v2')
 
     if file.filename == '':
         return jsonify({'error': 'No file selected'}), 400
@@ -132,13 +135,15 @@ def upload_file():
                 'details': validation_result['errors']
             }), 400
 
-        # Store file path in session
+        # Store file path and model in session
         session[f'file_{batch_id}'] = str(filepath)
+        batch_models[batch_id] = model
 
         return jsonify({
             'success': True,
             'batch_id': batch_id,
             'filename': filename,
+            'model': model,
             'summary': validation_result['summary']
         })
 
@@ -156,8 +161,12 @@ def generate_batch(batch_id):
         if not filepath or not Path(filepath).exists():
             return jsonify({'error': 'Batch file not found'}), 404
 
-        # Initialize orchestrator
-        orchestrator = VoiceoverOrchestrator()
+        # Get model from request body or stored selection
+        data = request.get_json() or {}
+        model = data.get('model') or batch_models.get(batch_id, 'eleven_multilingual_v2')
+
+        # Initialize orchestrator with selected model
+        orchestrator = VoiceoverOrchestrator(model=model)
 
         # Start background processing
         thread = threading.Thread(
@@ -170,6 +179,7 @@ def generate_batch(batch_id):
         return jsonify({
             'success': True,
             'batch_id': batch_id,
+            'model': model,
             'message': 'Batch processing started'
         })
 
@@ -296,6 +306,32 @@ def download_report(batch_id):
 
     except Exception as e:
         return f"Error downloading report: {e}", 500
+
+
+@app.route('/template/<model>')
+def download_template(model):
+    """Download CSV template for the selected model."""
+    templates_dir = Path(__file__).parent.parent / 'input_templates'
+
+    # Map model to template file
+    template_map = {
+        'eleven_multilingual_v2': 'voiceover_template_v2.csv',
+        'eleven_v3': 'voiceover_template_v3.csv',
+        'eleven_turbo_v2_5': 'voiceover_template_v2.csv',  # Same as V2
+    }
+
+    template_file = template_map.get(model, 'voiceover_template_v2.csv')
+    template_path = templates_dir / template_file
+
+    if not template_path.exists():
+        return "Template not found", 404
+
+    return send_file(
+        str(template_path),
+        as_attachment=True,
+        download_name=template_file,
+        mimetype='text/csv'
+    )
 
 
 @app.route('/voices')

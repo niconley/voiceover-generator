@@ -1,5 +1,5 @@
-script_text,target_duration,voice_id,output_filename,stability,similarity_boost,style,speed,prompt_text,notes
-"Welcome to our product. This revolutionary solution will completely transform the way you work and boost your productivity to new heights.",12.0,EXAVITQu4vr4xnSDxMaL,welcome_v3.mp3,0.5,0.75,0.0,1.0,"Speak with enthusiasm and energy, like an excited product announcer",Landing page intro
-"Limited time offer! Act now and save fifty percent on all premium plans. Don't miss out on this incredible opportunity.",10.0,EXAVITQu4vr4xnSDxMaL,promo_v3.mp3,0.6,0.8,0.2,1.0,"Urgent and persuasive tone, create excitement about the deal",Promotional banner
-"Thank you so much for choosing our service. We truly appreciate your business and can't wait to help you achieve amazing results.",11.0,EXAVITQu4vr4xnSDxMaL,thank_you_v3.mp3,0.5,0.75,0.0,1.0,"Warm, genuine, and appreciative tone",Post-purchase message
-"Call us today at one eight hundred five five five one two three four for a free consultation with our expert team.",10.0,EXAVITQu4vr4xnSDxMaL,call_to_action_v3.mp3,0.5,0.75,0.0,1.0,"Professional and inviting, clear phone number pronunciation",Contact page CTA
+script_text,target_duration,voice_id,output_filename,stability,similarity_boost,style,speed,notes
+"[excited] Welcome to our amazing product! This revolutionary solution will completely transform the way you work.",10.0,EXAVITQu4vr4xnSDxMaL,welcome_v3.mp3,0.5,0.75,0.0,1.0,V3 audio tag: [excited] for energetic delivery
+"[urgent] Limited time offer! Act now and save fifty percent on all premium plans.",8.0,EXAVITQu4vr4xnSDxMaL,promo_v3.mp3,0.5,0.75,0.0,1.0,V3 audio tag: [urgent] for promotional urgency
+"[friendly] Thank you so much for choosing our service. We truly appreciate your business.",9.0,EXAVITQu4vr4xnSDxMaL,thank_you_v3.mp3,0.5,0.75,0.0,1.0,V3 audio tag: [friendly] for warm tone
+"[slower] Call us today at 1-800-555-1234 for a free consultation.",10.0,EXAVITQu4vr4xnSDxMaL,call_to_action_v3.mp3,0.5,0.75,0.0,1.0,V3 audio tag: [slower] for clear phone number

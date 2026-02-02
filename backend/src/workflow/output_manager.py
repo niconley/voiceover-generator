@@ -25,17 +25,10 @@ class GenerationResult:
     target_duration: Optional[float] = None
     duration_diff: Optional[float] = None
     quality_passed: bool = False
-    verification_accuracy: Optional[float] = None
     issues: List[str] = field(default_factory=list)
     notes: str = ""
     audio_path: Optional[Path] = None
     error: Optional[str] = None
-
-    # LLM Quality Control fields (text-based)
-    llm_qc_status: Optional[str] = None  # 'pass', 'flag', 'fail', or None if not checked
-    llm_qc_score: Optional[float] = None  # 0-100 quality score
-    llm_qc_issues: List[str] = field(default_factory=list)
-    llm_qc_guidance: Optional[str] = None  # Regeneration guidance if failed
 
     # Audio Quality Control fields (Gemini audio analysis)
     audio_qc_status: Optional[str] = None  # 'pass', 'flag', 'fail', or None if not checked
@@ -55,14 +48,9 @@ class GenerationResult:
             'target_duration': self.target_duration,
             'duration_diff': self.duration_diff,
             'quality_passed': self.quality_passed,
-            'verification_accuracy': self.verification_accuracy,
             'issues': '; '.join(self.issues) if self.issues else '',
             'notes': self.notes,
             'error': self.error,
-            'llm_qc_status': self.llm_qc_status,
-            'llm_qc_score': self.llm_qc_score,
-            'llm_qc_issues': self.llm_qc_issues,  # Keep as array for web UI
-            'llm_qc_guidance': self.llm_qc_guidance,
             'audio_qc_status': self.audio_qc_status,
             'audio_qc_score': self.audio_qc_score,
             'audio_qc_issues': self.audio_qc_issues,  # Keep as array for web UI
@@ -344,9 +332,6 @@ class OutputManager:
                     f.write(f"Duration: {result.final_duration:.2f}s ")
                     f.write(f"(target: {result.target_duration:.2f}s, ")
                     f.write(f"diff: {result.duration_diff:+.2f}s)\n")
-
-                if result.verification_accuracy:
-                    f.write(f"Verification: {result.verification_accuracy:.1f}%\n")
 
                 if result.issues:
                     f.write(f"Issues: {'; '.join(result.issues)}\n")

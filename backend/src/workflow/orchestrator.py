@@ -14,12 +14,11 @@ from backend.src.api.retry_strategy import RetryStrategy
 from backend.src.audio.processor import AudioProcessor
 from backend.src.audio.quality_checker import QualityChecker
 from backend.src.verification.timing_adjuster import TimingAdjuster
-from backend.src.verification.speech_verifier import SpeechVerifier
-from backend.src.verification.llm_quality_checker import LLMQualityChecker
 from backend.src.verification.gemini_audio_qc import GeminiAudioQC
 from backend.src.workflow.input_parser import InputParser, VoiceoverItem
 from backend.src.workflow.output_manager import OutputManager, GenerationResult, BatchResult
 from backend.src.utils.logger import ProgressLogger
+from backend.src.utils.text_preprocessor import TextPreprocessor
 
 logger = logging.getLogger(__name__)
 
@@ -37,12 +36,13 @@ class VoiceoverOrchestrator:
     - Output organization and reporting
     """
 
-    def __init__(self, config: Optional[Config] = None):
+    def __init__(self, config: Optional[Config] = None, model: Optional[str] = None):
         """
         Initialize orchestrator with all components.
 
         Args:
             config: Configuration object (uses default if None)
+            model: ElevenLabs model to use (overrides config default)
         """
         self.config = config or Config()
 
@@ -51,10 +51,14 @@ class VoiceoverOrchestrator:
         if not is_valid:
             raise ValueError(f"Invalid configuration: {'; '.join(errors)}")
 
+        # Use provided model or fall back to config default
+        self.model = model or self.config.ELEVENLABS_DEFAULT_MODEL
+        logger.info(f"Using ElevenLabs model: {self.model}")
+
         # Initialize components
         self.api_client = ElevenLabsClient(
             api_key=self.config.ELEVENLABS_API_KEY,
-            default_model=self.config.ELEVENLABS_DEFAULT_MODEL
+            default_model=self.model
         )
 
         self.retry_strategy = RetryStrategy(
@@ -81,24 +85,6 @@ class VoiceoverOrchestrator:
             tolerance=self.config.DURATION_TOLERANCE
         )
 
-        self.speech_verifier = SpeechVerifier(
-            model_name=self.config.WHISPER_MODEL,
-            min_accuracy=self.config.MIN_VERIFICATION_ACCURACY
-        )
-
-        # Initialize LLM quality checker if enabled (text-based)
-        self.llm_qc_enabled = self.config.ENABLE_LLM_QC and self.config.ANTHROPIC_API_KEY
-        if self.llm_qc_enabled:
-            self.llm_quality_checker = LLMQualityChecker(
-                api_key=self.config.ANTHROPIC_API_KEY,
-                model=self.config.CLAUDE_MODEL
-            )
-            logger.info("LLM Quality Control (text-based) enabled")
-        else:
-            self.llm_quality_checker = None
-            if not self.config.ANTHROPIC_API_KEY:
-                logger.warning("LLM QC disabled: ANTHROPIC_API_KEY not set")
-
         # Initialize Gemini audio quality checker if enabled (audio-based)
         self.audio_qc_enabled = self.config.ENABLE_AUDIO_QC and self.config.GOOGLE_API_KEY
         if self.audio_qc_enabled:
@@ -119,13 +105,17 @@ class VoiceoverOrchestrator:
             logs_dir=self.config.LOGS_DIR
         )
 
+        # Initialize text preprocessor for number formatting
+        self.text_preprocessor = TextPreprocessor()
+
         logger.info("VoiceoverOrchestrator initialized successfully")
 
     def process_batch(
         self,
         input_file: str,
         max_retries: Optional[int] = None,
-        progress_callback: Optional[Callable] = None
+        progress_callback: Optional[Callable] = None,
+        batch_id: Optional[str] = None
     ) -> BatchResult:
         """
         Process entire batch from CSV/Excel file.
@@ -134,6 +124,7 @@ class VoiceoverOrchestrator:
             input_file: Path to CSV or Excel input file
             max_retries: Override config max retries
             progress_callback: Optional callback for progress updates
+            batch_id: Optional batch ID (generated if not provided)
 
         Returns:
             BatchResult with all generation results
@@ -144,8 +135,8 @@ class VoiceoverOrchestrator:
         """
         logger.info(f"Starting batch processing: {input_file}")
 
-        # Generate batch ID
-        batch_id = str(uuid.uuid4())[:8]
+        # Use provided batch ID or generate one
+        batch_id = batch_id or str(uuid.uuid4())[:8]
 
         # Parse input file
         items, critical_errors = self.input_parser.parse_file(input_file)
@@ -265,7 +256,8 @@ class VoiceoverOrchestrator:
                 )
 
         # Try generation with retries
-        original_script_text = item.script_text
+        # Preprocess script text for better number pronunciation
+        original_script_text = self.text_preprocessor.preprocess(item.script_text)
 
         # Track best attempt across all retries
         best_attempt = None
@@ -282,7 +274,8 @@ class VoiceoverOrchestrator:
                 adjusted_script_text = original_script_text
                 tags_to_add = []
 
-                if attempt > 1:
+                # Only add audio tags for V3 model (V2 doesn't support them)
+                if attempt > 1 and self.model == 'eleven_v3':
                     # Add timing tags based on speed adjustment
                     if current_speed < 1.0:
                         tags_to_add.append("slower")
@@ -296,8 +289,8 @@ class VoiceoverOrchestrator:
                                 tags_to_add.append(tag)
                         logger.info(f"Adding QC-suggested audio tags: {qc_suggested_tags}")
 
-                # Apply all tags to script
-                if tags_to_add:
+                # Apply all tags to script (V3 only)
+                if tags_to_add and self.model == 'eleven_v3':
                     tags_prefix = ' '.join(f'[{tag}]' for tag in tags_to_add)
                     adjusted_script_text = f"{tags_prefix} {original_script_text}"
                     logger.info(f"Script with audio tags: {tags_prefix} ...")
@@ -358,33 +351,6 @@ class VoiceoverOrchestrator:
                         metadata={'target_duration': item.target_duration}
                     )
 
-                    # Run speech verification
-                    verification_result = self.speech_verifier.verify_content(
-                        original_text=item.script_text,
-                        audio_data=audio_data
-                    )
-
-                    # Run LLM quality control if enabled
-                    llm_qc_result = None
-                    if self.llm_qc_enabled and verification_result.transcribed_text:
-                        logger.info("Running LLM quality control")
-                        llm_qc_result = self.llm_quality_checker.analyze_transcription(
-                            original_script=item.script_text,
-                            transcription=verification_result.transcribed_text,
-                            context={
-                                'target_duration': item.target_duration,
-                                'notes': item.notes
-                            }
-                        )
-
-                        # Log LLM QC results
-                        logger.info(
-                            f"LLM QC: {llm_qc_result.status.upper()} "
-                            f"(score: {llm_qc_result.score}/100)"
-                        )
-                        if llm_qc_result.issues:
-                            logger.info(f"LLM QC Issues: {', '.join(llm_qc_result.issues)}")
-
                     # Run Gemini audio quality control if enabled
                     audio_qc_result = None
                     if self.audio_qc_enabled:
@@ -425,21 +391,10 @@ class VoiceoverOrchestrator:
                         continue
 
                     # Determine final status based on all checks
-                    if quality_report.passed and verification_result.passed:
-                        # Check LLM QC if available
-                        if llm_qc_result:
-                            if llm_qc_result.status == 'fail':
-                                status = 'needs_review'
-                                issues.append(f"LLM QC failed: {llm_qc_result.reasoning}")
-                            elif llm_qc_result.status == 'flag':
-                                status = 'needs_review'
-                                issues.append(f"LLM QC flagged for review: {llm_qc_result.reasoning}")
-                            else:
-                                status = 'completed'
-                        else:
-                            status = 'completed'
+                    if quality_report.passed:
+                        status = 'completed'
 
-                        # Also check Audio QC if available
+                        # Check Audio QC if available
                         if audio_qc_result:
                             if audio_qc_result.status == 'fail':
                                 status = 'needs_review'
@@ -451,8 +406,6 @@ class VoiceoverOrchestrator:
                         status = 'needs_review'
                         if quality_report.issues:
                             issues.extend(quality_report.issues)
-                        if verification_result.details:
-                            issues.append(verification_result.details)
 
                     # Save audio
                     audio_path = self.output_manager.save_audio(
@@ -470,14 +423,9 @@ class VoiceoverOrchestrator:
                         target_duration=item.target_duration,
                         duration_diff=actual_duration - item.target_duration,
                         quality_passed=quality_report.passed,
-                        verification_accuracy=verification_result.accuracy,
                         issues=issues,
                         notes=item.notes or "",
                         audio_path=audio_path,
-                        llm_qc_status=llm_qc_result.status if llm_qc_result else None,
-                        llm_qc_score=llm_qc_result.score if llm_qc_result else None,
-                        llm_qc_issues=llm_qc_result.issues if llm_qc_result else [],
-                        llm_qc_guidance=llm_qc_result.guidance if llm_qc_result else None,
                         audio_qc_status=audio_qc_result.status if audio_qc_result else None,
                         audio_qc_score=audio_qc_result.score if audio_qc_result else None,
                         audio_qc_issues=audio_qc_result.issues if audio_qc_result else [],
@@ -536,29 +484,6 @@ class VoiceoverOrchestrator:
                                 metadata={'target_duration': item.target_duration}
                             )
 
-                            # Run speech verification on best attempt
-                            verification_result = self.speech_verifier.verify_content(
-                                original_text=item.script_text,
-                                audio_data=best_attempt['audio_data']
-                            )
-
-                            # Run LLM QC if enabled
-                            llm_qc_result = None
-                            if self.llm_qc_enabled and verification_result.transcribed_text:
-                                logger.info("Running LLM quality control on best attempt")
-                                llm_qc_result = self.llm_quality_checker.analyze_transcription(
-                                    original_script=item.script_text,
-                                    transcription=verification_result.transcribed_text,
-                                    context={
-                                        'target_duration': item.target_duration,
-                                        'notes': item.notes
-                                    }
-                                )
-                                logger.info(
-                                    f"LLM QC: {llm_qc_result.status.upper()} "
-                                    f"(score: {llm_qc_result.score}/100)"
-                                )
-
                             # Run Gemini audio QC if enabled
                             audio_qc_result = None
                             if self.audio_qc_enabled:
@@ -580,8 +505,6 @@ class VoiceoverOrchestrator:
                             attempt_issues = [f"Max retries exceeded, timing not achieved (best: {best_duration_diff:.2f}s off)"]
                             if quality_report.issues:
                                 attempt_issues.extend(quality_report.issues)
-                            if verification_result.details:
-                                attempt_issues.append(verification_result.details)
 
                             # Save best attempt with needs_review status
                             audio_path = self.output_manager.save_audio(
@@ -598,14 +521,9 @@ class VoiceoverOrchestrator:
                                 target_duration=item.target_duration,
                                 duration_diff=best_attempt['actual_duration'] - item.target_duration,
                                 quality_passed=quality_report.passed,
-                                verification_accuracy=verification_result.accuracy,
                                 issues=attempt_issues,
                                 notes=item.notes or "",
                                 audio_path=audio_path,
-                                llm_qc_status=llm_qc_result.status if llm_qc_result else None,
-                                llm_qc_score=llm_qc_result.score if llm_qc_result else None,
-                                llm_qc_issues=llm_qc_result.issues if llm_qc_result else [],
-                                llm_qc_guidance=llm_qc_result.guidance if llm_qc_result else None,
                                 audio_qc_status=audio_qc_result.status if audio_qc_result else None,
                                 audio_qc_score=audio_qc_result.score if audio_qc_result else None,
                                 audio_qc_issues=audio_qc_result.issues if audio_qc_result else [],
