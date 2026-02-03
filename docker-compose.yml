@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  voiceover:
+    build: .
+    ports:
+      - "5000:5000"
+    environment:
+      - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-}
+      - FLASK_PORT=5000
+      - FLASK_HOST=0.0.0.0
+      - LOG_LEVEL=INFO
+    volumes:
+      - voiceover_output:/app/output
+      - voiceover_logs:/app/logs
+      - voiceover_uploads:/app/uploads
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 2G
+
+volumes:
+  voiceover_output:
+  voiceover_logs:
+  voiceover_uploads:
