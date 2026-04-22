@@ -14,6 +14,51 @@
         </header>
 
         <main>
+            <div class="preview-section">
+                <h2>Script Duration Preview</h2>
+                <p class="preview-description">Paste a script to generate a real audio sample and get the exact duration — useful before building your batch CSV.</p>
+
+                <div class="preview-controls">
+                    <div class="preview-input-group">
+                        <label for="previewScript"><strong>Script</strong></label>
+                        <textarea id="previewScript" rows="4" placeholder="e.g. Call 1-800-555-7362 to get your new snuggie shipped for free"></textarea>
+                    </div>
+
+                    <div class="preview-settings">
+                        <div class="preview-setting">
+                            <label for="previewVoice"><strong>Voice</strong></label>
+                            <select id="previewVoice">
+                                <option value="">Loading voices…</option>
+                            </select>
+                        </div>
+                        <div class="preview-setting">
+                            <label for="previewModel"><strong>Model</strong></label>
+                            <select id="previewModel">
+                                <option value="eleven_multilingual_v2">V2 Multilingual</option>
+                                <option value="eleven_v3">V3 (Expressive)</option>
+                                <option value="eleven_turbo_v2_5">Turbo V2.5</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <button id="previewBtn" onclick="generatePreview()">Get Duration</button>
+                </div>
+
+                <div class="preview-result" id="previewResult" style="display: none;">
+                    <div class="duration-display">
+                        <span class="duration-value" id="previewDuration">--</span>
+                        <span class="duration-unit">seconds</span>
+                    </div>
+                    <audio id="previewAudio" controls></audio>
+                </div>
+
+                <div class="preview-error" id="previewError" style="display: none;">
+                    <p id="previewErrorMsg"></p>
+                </div>
+            </div>
+
+            <div class="section-divider"></div>
+
             <div class="upload-section" id="uploadSection">
                 <h2>Select Model & Upload CSV</h2>
 
@@ -251,6 +296,102 @@
             document.getElementById('progressSection').style.display = 'none';
             document.getElementById('errorSection').style.display = 'block';
         }
+
+        // ── Script Duration Preview ──────────────────────────────────────────
+
+        async function loadPreviewVoices() {
+            try {
+                const res = await fetch('/voices/local');
+                const data = await res.json();
+                const select = document.getElementById('previewVoice');
+
+                if (!data.success || !data.voices.length) {
+                    select.innerHTML = '<option value="">No voices found</option>';
+                    return;
+                }
+
+                const grouped = {};
+                data.voices.forEach(v => {
+                    const cat = v.category || 'other';
+                    if (!grouped[cat]) grouped[cat] = [];
+                    grouped[cat].push(v);
+                });
+
+                const categoryLabels = {
+                    premade: 'Premade',
+                    professional: 'Professional',
+                    cloned: 'Cloned'
+                };
+
+                select.innerHTML = '';
+                Object.entries(grouped).forEach(([cat, voices]) => {
+                    const group = document.createElement('optgroup');
+                    group.label = categoryLabels[cat] || cat;
+                    voices.forEach(v => {
+                        const opt = document.createElement('option');
+                        opt.value = v.id;
+                        opt.textContent = v.name;
+                        group.appendChild(opt);
+                    });
+                    select.appendChild(group);
+                });
+            } catch (e) {
+                document.getElementById('previewVoice').innerHTML = '<option value="">Failed to load voices</option>';
+            }
+        }
+
+        async function generatePreview() {
+            const script = document.getElementById('previewScript').value.trim();
+            const voiceId = document.getElementById('previewVoice').value;
+            const model = document.getElementById('previewModel').value;
+            const btn = document.getElementById('previewBtn');
+
+            document.getElementById('previewResult').style.display = 'none';
+            document.getElementById('previewError').style.display = 'none';
+
+            if (!script) {
+                showPreviewError('Please enter a script.');
+                return;
+            }
+            if (!voiceId) {
+                showPreviewError('Please select a voice.');
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = 'Generating…';
+
+            try {
+                const res = await fetch('/preview', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ script_text: script, voice_id: voiceId, model })
+                });
+                const data = await res.json();
+
+                if (!res.ok || !data.success) {
+                    throw new Error(data.error || 'Preview failed');
+                }
+
+                document.getElementById('previewDuration').textContent = data.duration.toFixed(2);
+                const audio = document.getElementById('previewAudio');
+                audio.src = 'data:audio/mpeg;base64,' + data.audio_b64;
+                audio.load();
+                document.getElementById('previewResult').style.display = 'flex';
+            } catch (e) {
+                showPreviewError(e.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Get Duration';
+            }
+        }
+
+        function showPreviewError(msg) {
+            document.getElementById('previewErrorMsg').textContent = msg;
+            document.getElementById('previewError').style.display = 'block';
+        }
+
+        loadPreviewVoices();
     </script>
 </body>
 </html>

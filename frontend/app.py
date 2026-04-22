@@ -8,7 +8,9 @@ from datetime import datetime
 import threading
 import uuid
 import zipfile
+import base64
 
+import yaml
 from flask import Flask, render_template, request, jsonify, send_file, session
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
@@ -18,6 +20,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from backend.config.settings import Config
 from backend.src.workflow.orchestrator import VoiceoverOrchestrator
+from backend.src.api.elevenlabs_client import ElevenLabsClient
+from backend.src.audio.processor import AudioProcessor
+from backend.src.utils.text_preprocessor import TextPreprocessor
 from backend.src.utils.logger import setup_logging
 
 # Initialize Flask app
@@ -344,6 +349,78 @@ def get_voices():
         return jsonify({
             'success': True,
             'voices': voices
+        })
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/voices/local')
+def get_local_voices():
+    """Get curated voice list from local YAML config (no API call needed)."""
+    try:
+        voices_path = Path(__file__).parent.parent / 'backend' / 'config' / 'my_voices.yaml'
+        with open(voices_path) as f:
+            data = yaml.safe_load(f)
+
+        voices = [
+            {
+                'id': v['id'],
+                'name': v['name'],
+                'category': v.get('category', ''),
+                'description': v.get('description', '')
+            }
+            for v in data.get('voices', {}).values()
+        ]
+        voices.sort(key=lambda v: v['name'])
+
+        return jsonify({'success': True, 'voices': voices})
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/preview', methods=['POST'])
+def preview_duration():
+    """Generate a real audio sample and return its measured duration + audio data."""
+    try:
+        data = request.get_json()
+        script_text = (data.get('script_text') or '').strip()
+        voice_id = (data.get('voice_id') or '').strip()
+        model = data.get('model') or 'eleven_multilingual_v2'
+
+        if not script_text:
+            return jsonify({'error': 'Script text is required'}), 400
+        if not voice_id:
+            return jsonify({'error': 'Voice is required'}), 400
+        if not Config.ELEVENLABS_API_KEY:
+            return jsonify({'error': 'ElevenLabs API key not configured'}), 500
+
+        client = ElevenLabsClient(api_key=Config.ELEVENLABS_API_KEY, default_model=model)
+        processor = AudioProcessor(
+            default_format=Config.AUDIO_FORMAT,
+            default_bitrate=Config.BITRATE
+        )
+        preprocessor = TextPreprocessor()
+
+        processed_text = preprocessor.preprocess(script_text)
+        audio_data = client.generate_speech(
+            text=processed_text,
+            voice_id=voice_id,
+            model=model
+        )
+
+        audio_data = processor.trim_silence(
+            audio_data,
+            silence_threshold=Config.SILENCE_THRESHOLD,
+            padding_ms=Config.SILENCE_PADDING_MS
+        )
+        duration = processor.get_duration(audio_data)
+
+        return jsonify({
+            'success': True,
+            'duration': round(duration, 2),
+            'audio_b64': base64.b64encode(audio_data).decode('utf-8')
         })
 
     except Exception as e:
