@@ -275,13 +275,9 @@ class VoiceoverOrchestrator:
                 tags_to_add = []
 
                 # Only add audio tags for V3 model (V2 doesn't support them)
+                # Note: timing is controlled via the speed VoiceSettings parameter, NOT
+                # audio tags — mixing both causes compounding speed issues.
                 if attempt > 1 and self.model == 'eleven_v3':
-                    # Add timing tags based on speed adjustment
-                    if current_speed < 1.0:
-                        tags_to_add.append("slower")
-                    elif current_speed > 1.0:
-                        tags_to_add.append("faster")
-
                     # Add QC-suggested tags from previous Audio QC failure
                     if qc_suggested_tags:
                         for tag in qc_suggested_tags:
