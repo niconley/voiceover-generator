@@ -45,7 +45,7 @@ body {
 
 /* ── Header ──────────────────────────────────────────────────────────── */
 header {
-    background: var(--surface);
+    background: var(--brand-black);
     border-bottom: 3px solid var(--brand-lime);
     margin: 0 -2rem 3rem;
     padding: 1.25rem 2rem;
@@ -92,11 +92,11 @@ header .btn-back {
     font-size: 0.8rem;
     font-weight: 600;
     letter-spacing: 0.05em;
-    color: var(--brand-teal-dark);
+    color: rgba(255,255,255,0.7);
     text-decoration: none;
     padding: 0.5rem 1.25rem;
     border-radius: 6px;
-    border: 1px solid var(--border);
+    border: 1px solid rgba(255,255,255,0.2);
     transition: all 0.2s ease;
     display: inline-flex;
     align-items: center;
@@ -104,19 +104,20 @@ header .btn-back {
 }
 
 header .btn-back:hover {
-    background: var(--background);
-    border-color: var(--brand-teal-mid);
+    color: white;
+    border-color: var(--brand-lime);
+    background: rgba(200, 232, 42, 0.08);
 }
 
 header .batch-label {
     font-size: 0.8rem;
-    color: var(--text-secondary);
+    color: rgba(255,255,255,0.4);
     font-family: monospace;
 }
 
 header .batch-label code {
-    color: var(--brand-teal-dark);
-    background: rgba(20, 114, 114, 0.08);
+    color: var(--brand-teal-light);
+    background: rgba(56, 212, 190, 0.1);
     padding: 0.2rem 0.5rem;
     border-radius: 4px;
 }
