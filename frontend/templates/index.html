@@ -3,14 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bulk Voiceover Generator</title>
+    <title>Voiceover Generator — Volacity</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>Bulk Voiceover Generator</h1>
-            <p>Generate commercial voiceovers with precise timing control</p>
+            <a href="/" class="header-logo">
+                <!-- Volacity logo mark: 4-segment play button -->
+                <svg viewBox="0 0 96 104" width="44" height="48" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                    <polygon points="0,0 48,26 0,52"  fill="#C8E82A"/>
+                    <polygon points="48,26 96,52 0,52" fill="#2BB5AB"/>
+                    <polygon points="0,52 0,104 48,78" fill="#147272"/>
+                    <polygon points="48,78 96,52 0,52" fill="#38D4BE"/>
+                    <line x1="0" y1="52" x2="48" y2="26" stroke="white" stroke-width="2.5"/>
+                    <line x1="0" y1="52" x2="96" y2="52" stroke="white" stroke-width="2.5"/>
+                    <line x1="0" y1="52" x2="48" y2="78" stroke="white" stroke-width="2.5"/>
+                </svg>
+                <div class="header-brand">
+                    <span class="brand-name">VOLACITY</span>
+                    <span class="brand-subtitle">Voiceover Generator</span>
+                </div>
+            </a>
         </header>
 
         <main>
@@ -122,7 +138,8 @@
         </main>
 
         <footer>
-            <p>Powered by ElevenLabs API</p>
+            <span>Powered by</span>
+            <a href="https://elevenlabs.io" target="_blank" rel="noopener">ElevenLabs</a>
         </footer>
     </div>
 
