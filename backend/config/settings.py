@@ -8,19 +8,26 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
-# Base directories
+# Base directories — use /tmp on read-only filesystems (e.g. Vercel serverless)
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
-OUTPUT_DIR = BASE_DIR / "output"
-LOGS_DIR = BASE_DIR / "logs"
+_writable = os.access(BASE_DIR, os.W_OK)
+_data_root = BASE_DIR if _writable else Path("/tmp/voiceover-generator")
+
+OUTPUT_DIR = _data_root / "output"
+LOGS_DIR = _data_root / "logs"
 TEMPLATES_DIR = BASE_DIR / "input_templates"
 
 # Ensure directories exist
-OUTPUT_DIR.mkdir(exist_ok=True)
-LOGS_DIR.mkdir(exist_ok=True)
-TEMPLATES_DIR.mkdir(exist_ok=True)
-(OUTPUT_DIR / "completed").mkdir(exist_ok=True)
-(OUTPUT_DIR / "failed").mkdir(exist_ok=True)
-(OUTPUT_DIR / "needs_review").mkdir(exist_ok=True)
+for _d in [
+    OUTPUT_DIR,
+    LOGS_DIR,
+    OUTPUT_DIR / "completed",
+    OUTPUT_DIR / "failed",
+    OUTPUT_DIR / "needs_review",
+]:
+    _d.mkdir(parents=True, exist_ok=True)
+
+TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
 
 
 class Config:
@@ -106,7 +113,7 @@ class Config:
 
     # Session management
     SECRET_KEY = os.getenv("SECRET_KEY", os.urandom(24).hex())
-    UPLOAD_FOLDER = BASE_DIR / "uploads"
+    UPLOAD_FOLDER = _data_root / "uploads"
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16 MB max file size
 
     # ==================== Batch Processing Settings ====================
