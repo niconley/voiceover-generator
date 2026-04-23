@@ -8,8 +8,6 @@ import logging
 import tempfile
 from pathlib import Path
 
-import google.generativeai as genai
-
 logger = logging.getLogger(__name__)
 
 
@@ -48,8 +46,10 @@ class GeminiAudioQC:
             api_key: Google API key
             model: Gemini model to use (default: gemini-2.0-flash-exp)
         """
+        import google.generativeai as genai
         genai.configure(api_key=api_key)
         self.model = genai.GenerativeModel(model)
+        self._genai = genai
 
         logger.info(f"GeminiAudioQC initialized with model: {model}")
 
@@ -79,7 +79,7 @@ class GeminiAudioQC:
             logger.info("Uploading audio to Gemini for analysis")
 
             # Upload audio file to Gemini
-            audio_file = genai.upload_file(tmp_path)
+            audio_file = self._genai.upload_file(tmp_path)
 
             # Build the analysis prompt
             prompt = self._build_prompt(original_script, context)

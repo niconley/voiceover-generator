@@ -1,12 +1,10 @@
 # Core dependencies
 elevenlabs>=1.0.0
-google-generativeai>=0.8.0
 python-dotenv>=1.0.0
 pyyaml>=6.0
 
-# Audio processing
+# Audio processing (lightweight — librosa pulled in only if needed locally)
 pydub>=0.25.1
-librosa>=0.10.0
 soundfile>=0.12.1
 numpy>=1.24.0
 mutagen>=1.47.0
@@ -22,7 +20,3 @@ flask-cors>=4.0.0
 # Utilities
 tqdm>=4.65.0
 click>=8.1.0
-
-# Quality assurance
-pytest>=7.4.0
-pytest-cov>=4.1.0
