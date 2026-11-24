@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign In — Volacity Voiceover Generator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <span class="header-logo">
+                <img src="{{ url_for('static', filename='Volacity Logo-02.png') }}"
+                     alt="Volacity"
+                     class="header-logo-img">
+            </span>
+        </header>
+
+        <main class="login-card">
+            <h2>Voiceover Generator</h2>
+            <p class="login-description">Enter the team password to continue.</p>
+
+            {% if error %}
+            <div class="preview-error" role="alert">
+                <p>{{ error }}</p>
+            </div>
+            {% endif %}
+
+            <form method="post" action="{{ url_for('login') }}" class="login-form">
+                <input type="hidden" name="next" value="{{ next_url }}">
+                <div class="preview-input-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password"
+                           autocomplete="current-password" required autofocus>
+                </div>
+                <button type="submit">Sign In</button>
+            </form>
+        </main>
+    </div>
+</body>
+</html>

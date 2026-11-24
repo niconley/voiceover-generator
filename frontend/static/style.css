@@ -776,6 +776,49 @@ button:disabled {
     font-size: 0.9rem;
 }
 
+/* ── Login ───────────────────────────────────────────────────────────── */
+main.login-card {
+    max-width: 440px;
+    margin: 0 auto;
+}
+
+.login-description {
+    color: var(--text-secondary);
+    margin-bottom: 1.5rem;
+}
+
+.login-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.login-form input[type="password"] {
+    width: 100%;
+    padding: 0.875rem;
+    font-size: 1rem;
+    font-family: inherit;
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    transition: border-color 0.2s ease;
+    color: var(--text-primary);
+    background: var(--surface);
+}
+
+.login-form input[type="password"]:focus {
+    outline: none;
+    border-color: var(--brand-teal-mid);
+    box-shadow: 0 0 0 3px rgba(43, 181, 171, 0.12);
+}
+
+.login-form button {
+    width: 100%;
+}
+
+.login-card .preview-error {
+    margin: 0 0 1.25rem;
+}
+
 /* ── Footer ──────────────────────────────────────────────────────────── */
 footer {
     text-align: center;

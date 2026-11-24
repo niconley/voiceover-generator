@@ -4,14 +4,16 @@ Flask web application for bulk voiceover generation.
 import sys
 from pathlib import Path
 import os
-from datetime import datetime
+import hmac
+import time
+from datetime import datetime, timedelta
 import threading
 import uuid
 import zipfile
 import base64
 
 import yaml
-from flask import Flask, render_template, request, jsonify, send_file, session
+from flask import Flask, render_template, request, jsonify, send_file, session, redirect, url_for
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 
@@ -43,6 +45,12 @@ UPLOAD_FOLDER = Config.UPLOAD_FOLDER
 UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = str(UPLOAD_FOLDER)
 app.config['MAX_CONTENT_LENGTH'] = Config.MAX_CONTENT_LENGTH
+
+# Login session cookie
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=Config.SESSION_LIFETIME_DAYS)
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SECURE'] = Config.SESSION_COOKIE_SECURE
 
 # Allowed file extensions
 ALLOWED_EXTENSIONS = {'csv', 'xlsx', 'xls'}
@@ -95,6 +103,69 @@ def process_batch_async(batch_id, input_file, orchestrator):
             'status': 'error',
             'message': str(e)
         }
+
+
+# ==================== Password protection ====================
+
+# Endpoints reachable without logging in. /health stays open for the AWS health check.
+PUBLIC_ENDPOINTS = {'login', 'health_check', 'static'}
+
+
+@app.before_request
+def require_login():
+    """Send anyone without a logged-in session to the login page."""
+    if request.endpoint in PUBLIC_ENDPOINTS or session.get('authenticated'):
+        return None
+
+    # Browser page loads get redirected; API calls from the page's JavaScript get a 401.
+    if request.method == 'GET' and 'text/html' in request.headers.get('Accept', ''):
+        return redirect(url_for('login', next=request.full_path.rstrip('?')))
+    return jsonify({'error': 'Login required. Reload the page to sign in.'}), 401
+
+
+def safe_next_url(target):
+    """Only allow redirects back to a path on this site (no open redirects)."""
+    if target and target.startswith('/') and not target.startswith('//') and '\\' not in target:
+        return target
+    return url_for('index')
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    """Shared-password login page."""
+    next_url = safe_next_url(request.values.get('next'))
+
+    if not Config.APP_PASSWORD:
+        app.logger.error("APP_PASSWORD is not set; refusing all logins")
+        return render_template(
+            'login.html',
+            error='Password protection is not configured on the server. Ask an admin to set APP_PASSWORD.',
+            next_url=next_url
+        ), 503
+
+    if session.get('authenticated'):
+        return redirect(next_url)
+
+    if request.method == 'POST':
+        password = request.form.get('password', '')
+        if hmac.compare_digest(password.encode('utf-8'), Config.APP_PASSWORD.encode('utf-8')):
+            session.clear()
+            session.permanent = True
+            session['authenticated'] = True
+            return redirect(next_url)
+
+        app.logger.warning(f"Failed login attempt from {request.headers.get('X-Forwarded-For', request.remote_addr)}")
+        time.sleep(1)  # slow down password guessing
+        return render_template('login.html', error='Incorrect password.', next_url=next_url), 401
+
+    return render_template('login.html', error=None, next_url=next_url)
+
+
+@app.route('/logout')
+def logout():
+    """Clear the session and return to the login page."""
+    session.clear()
+    return redirect(url_for('login'))
 
 
 def resolve_model(model):

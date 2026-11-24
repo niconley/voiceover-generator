@@ -117,6 +117,13 @@ class Config:
 
     # Session management
     SECRET_KEY = os.getenv("SECRET_KEY", os.urandom(24).hex())
+
+    # Access control: one shared team password. If APP_PASSWORD is not set,
+    # nobody can log in (the app fails closed rather than running unprotected).
+    APP_PASSWORD = os.getenv("APP_PASSWORD")
+    SESSION_LIFETIME_DAYS = int(os.getenv("SESSION_LIFETIME_DAYS", "30"))
+    # Set to "true" when served over HTTPS so the login cookie is never sent over plain HTTP
+    SESSION_COOKIE_SECURE = os.getenv("SESSION_COOKIE_SECURE", "false").lower() == "true"
     UPLOAD_FOLDER = _data_root / "uploads"
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16 MB max file size
 
