@@ -124,6 +124,9 @@ class VoiceoverOrchestrator:
         # Use provided batch ID or generate one
         batch_id = batch_id or str(uuid.uuid4())[:8]
 
+        # Keep each batch's audio in its own folder
+        self.output_manager.use_batch_folder(batch_id)
+
         # Parse input file
         items, critical_errors = self.input_parser.parse_file(input_file)
 
@@ -377,42 +380,9 @@ class VoiceoverOrchestrator:
                         logger.warning(f"Max retries reached for {item.output_filename}")
 
                         if best_attempt:
-                            logger.info(
-                                f"Saving best attempt (#{best_attempt['attempt_number']}): "
-                                f"{best_attempt['actual_duration']:.2f}s "
-                                f"(off by {best_duration_diff:.2f}s)"
-                            )
-
-                            # Run quality checks on best attempt
-                            quality_report = self.quality_checker.run_all_checks(
-                                best_attempt['audio_data'],
-                                metadata={'target_duration': item.target_duration}
-                            )
-
-                            # Build issues list
-                            attempt_issues = [f"Max retries exceeded, timing not achieved (best: {best_duration_diff:.2f}s off)"]
-                            if quality_report.issues:
-                                attempt_issues.extend(quality_report.issues)
-
-                            # Save best attempt with needs_review status and script metadata
-                            audio_path = self.output_manager.save_audio(
-                                best_attempt['audio_data'],
-                                item.output_filename,
-                                status='needs_review',
-                                script_text=item.script_text
-                            )
-
-                            return GenerationResult(
-                                filename=item.output_filename,
-                                status='needs_review',
-                                attempts=attempt,
-                                final_duration=best_attempt['actual_duration'],
-                                target_duration=item.target_duration,
-                                duration_diff=best_attempt['actual_duration'] - item.target_duration,
-                                quality_passed=quality_report.passed,
-                                issues=attempt_issues,
-                                notes=item.notes or "",
-                                audio_path=audio_path
+                            return self._save_best_attempt(
+                                item, best_attempt, best_duration_diff, attempt,
+                                reason=f"Max retries exceeded, timing not achieved (best: {best_duration_diff:.2f}s off)"
                             )
                         else:
                             # No successful attempts at all
@@ -428,6 +398,17 @@ class VoiceoverOrchestrator:
                 logger.error(f"Attempt {attempt} failed: {e}")
 
                 if attempt >= max_retries:
+                    # Last attempt errored: still deliver the closest earlier attempt if there is one
+                    if best_attempt:
+                        try:
+                            return self._save_best_attempt(
+                                item, best_attempt, best_duration_diff, attempt,
+                                reason=(f"Final attempt failed ({e}); kept best earlier attempt "
+                                        f"(#{best_attempt['attempt_number']}, {best_duration_diff:.2f}s off)")
+                            )
+                        except Exception as save_error:
+                            logger.error(f"Could not save best attempt: {save_error}")
+
                     # Failed after all retries
                     return GenerationResult(
                         filename=item.output_filename,
@@ -444,6 +425,50 @@ class VoiceoverOrchestrator:
             attempts=attempt,
             target_duration=item.target_duration,
             error="Unknown error occurred"
+        )
+
+    def _save_best_attempt(
+        self,
+        item: VoiceoverItem,
+        best_attempt: dict,
+        best_duration_diff: float,
+        attempts: int,
+        reason: str
+    ) -> GenerationResult:
+        """Save the attempt closest to the target duration as needs_review."""
+        logger.info(
+            f"Saving best attempt (#{best_attempt['attempt_number']}): "
+            f"{best_attempt['actual_duration']:.2f}s "
+            f"(off by {best_duration_diff:.2f}s)"
+        )
+
+        quality_report = self.quality_checker.run_all_checks(
+            best_attempt['audio_data'],
+            metadata={'target_duration': item.target_duration}
+        )
+
+        issues = [reason]
+        if quality_report.issues:
+            issues.extend(quality_report.issues)
+
+        audio_path = self.output_manager.save_audio(
+            best_attempt['audio_data'],
+            item.output_filename,
+            status='needs_review',
+            script_text=item.script_text
+        )
+
+        return GenerationResult(
+            filename=item.output_filename,
+            status='needs_review',
+            attempts=attempts,
+            final_duration=best_attempt['actual_duration'],
+            target_duration=item.target_duration,
+            duration_diff=best_attempt['actual_duration'] - item.target_duration,
+            quality_passed=quality_report.passed,
+            issues=issues,
+            notes=item.notes or "",
+            audio_path=audio_path
         )
 
     def validate_input(self, input_file: str) -> dict:

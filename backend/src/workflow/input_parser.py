@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional, Dict, Tuple
 import logging
+import re
 
 import pandas as pd
 
@@ -66,6 +67,9 @@ class InputParser:
         "notes"
     ]
 
+    # Characters that are unsafe in file names (path separators, Windows-reserved, control chars)
+    UNSAFE_FILENAME_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+
     def __init__(self):
         """Initialize input parser."""
         logger.info("InputParser initialized")
@@ -94,13 +98,17 @@ class InputParser:
         # Determine file type and load
         if file_path.suffix.lower() == '.csv':
             df = pd.read_csv(file_path)
-        elif file_path.suffix.lower() in ['.xlsx', '.xls']:
+        elif file_path.suffix.lower() == '.xlsx':
             df = pd.read_excel(file_path)
         else:
             raise ValueError(
                 f"Unsupported file format: {file_path.suffix}. "
-                f"Supported formats: .csv, .xlsx, .xls"
+                f"Supported formats: .csv, .xlsx"
             )
+
+        # Ignore completely blank rows (common at the end of spreadsheet exports).
+        # The original index is kept, so row numbers in errors still match the file.
+        df = df.dropna(how='all')
 
         logger.info(f"Loaded {len(df)} rows from {file_path}")
 
@@ -118,6 +126,20 @@ class InputParser:
 
             if not item.is_valid:
                 logger.warning(f"Row {item.row_number} has validation errors: {item.errors}")
+
+        # Two rows with the same output_filename would overwrite each other's audio
+        seen = {}
+        for item in items:
+            key = item.output_filename.lower()
+            if not key:
+                continue
+            if key in seen:
+                item.errors.append(
+                    f"Duplicate output_filename '{item.output_filename}' "
+                    f"(also used in row {seen[key]})"
+                )
+            else:
+                seen[key] = item.row_number
 
         valid_count = sum(1 for item in items if item.is_valid)
         logger.info(
@@ -191,6 +213,15 @@ class InputParser:
         if output_filename and not output_filename.strip():
             errors.append("output_filename cannot be empty")
 
+        if output_filename and (
+            self.UNSAFE_FILENAME_CHARS.search(output_filename)
+            or output_filename.startswith('.')
+        ):
+            errors.append(
+                f"output_filename '{output_filename}' must be a plain file name "
+                f"(no folders, no leading dot, and none of these characters: < > : \" / \\ | ? *)"
+            )
+
         if stability is not None and not (0 <= stability <= 1):
             errors.append(f"stability must be between 0 and 1 (got {stability})")
 
@@ -215,10 +246,10 @@ class InputParser:
             output_filename=output_filename or "",
             voice_id=voice_id,
             voice_name=voice_name,
-            stability=stability or 0.5,
-            similarity_boost=similarity_boost or 0.75,
-            style=style or 0.0,
-            speed=speed or 1.0,
+            stability=0.5 if stability is None else stability,
+            similarity_boost=0.75 if similarity_boost is None else similarity_boost,
+            style=0.0 if style is None else style,
+            speed=1.0 if speed is None else speed,
             notes=notes,
             row_number=row_number,
             errors=errors
@@ -335,6 +366,10 @@ class InputParser:
             }
 
             is_valid = len(invalid_items) == 0
+
+            if not items:
+                is_valid = False
+                all_errors.append("The file has no script rows (only a header, or every row is blank)")
 
             logger.info(
                 f"File validation: {summary['valid_items']}/{summary['total_items']} valid"

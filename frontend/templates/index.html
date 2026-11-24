@@ -97,7 +97,7 @@
                         <button type="button" onclick="document.getElementById('fileInput').click()">
                             Browse Files
                         </button>
-                        <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" style="display: none;">
+                        <input type="file" id="fileInput" accept=".csv,.xlsx" style="display: none;">
                     </div>
                 </div>
 
@@ -190,11 +190,11 @@
 
         function handleFile(file) {
             // Validate file type
-            const validTypes = ['.csv', '.xlsx', '.xls'];
+            const validTypes = ['.csv', '.xlsx'];
             const fileExt = '.' + file.name.split('.').pop().toLowerCase();
 
             if (!validTypes.includes(fileExt)) {
-                showError('Invalid file type. Please upload a CSV or Excel file.');
+                showError('Invalid file type. Please upload a .csv or .xlsx file (save older .xls files as .xlsx first).');
                 return;
             }
 
@@ -216,7 +216,16 @@
                 const data = await response.json();
 
                 if (!response.ok) {
-                    throw new Error(data.error || 'Upload failed');
+                    // Show which rows are wrong, not just "Invalid input file"
+                    let message = data.error || 'Upload failed';
+                    if (data.details && data.details.length) {
+                        const shown = data.details.slice(0, 10);
+                        message += ':\n• ' + shown.join('\n• ');
+                        if (data.details.length > shown.length) {
+                            message += `\n…and ${data.details.length - shown.length} more`;
+                        }
+                    }
+                    throw new Error(message);
                 }
 
                 // Store batch ID
@@ -241,7 +250,9 @@
 
         // Generate button
         document.getElementById('generateBtn').addEventListener('click', async () => {
-            if (!batchId) return;
+            const generateBtn = document.getElementById('generateBtn');
+            if (!batchId || generateBtn.disabled) return;
+            generateBtn.disabled = true;  // prevent double-starting (and double-billing) a batch
 
             try {
                 const response = await fetch(`/generate/${batchId}`, {
@@ -266,6 +277,7 @@
                 pollProgress();
 
             } catch (error) {
+                generateBtn.disabled = false;
                 showError(error.message);
             }
         });
@@ -275,6 +287,12 @@
                 const response = await fetch(`/status/${batchId}`);
                 const data = await response.json();
 
+                if (!response.ok) {
+                    // e.g. server restarted (batch lost) or login expired
+                    showError(data.error || 'Lost track of this batch. Please reload and try again.');
+                    return;
+                }
+
                 // Update progress bar
                 if (data.total > 0) {
                     const percent = (data.current / data.total) * 100;
@@ -283,7 +301,7 @@
                     document.getElementById('progressTotal').textContent = data.total;
                 }
 
-                document.getElementById('statusText').textContent = data.message;
+                document.getElementById('statusText').textContent = data.message || '';
 
                 if (data.status === 'completed') {
                     // Redirect to results page
@@ -301,7 +319,9 @@
         }
 
         function showError(message) {
-            document.getElementById('errorMessage').textContent = message;
+            const errorMessage = document.getElementById('errorMessage');
+            errorMessage.textContent = message;
+            errorMessage.style.whiteSpace = 'pre-line';
             document.getElementById('uploadSection').style.display = 'none';
             document.getElementById('progressSection').style.display = 'none';
             document.getElementById('errorSection').style.display = 'block';

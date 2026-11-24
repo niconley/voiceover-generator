@@ -76,6 +76,9 @@ class BatchResult:
         if result.final_duration:
             self.total_duration += result.final_duration
 
+    def _pct(self, count: int) -> float:
+        return count / self.total_items * 100 if self.total_items else 0.0
+
     def get_summary(self) -> str:
         """Get human-readable summary."""
         success_rate = (
@@ -92,9 +95,9 @@ Date: {self.timestamp.strftime('%Y-%m-%d %H:%M:%S')}
 Total Items: {self.total_items}
 
 Results:
-  ✓ Completed: {self.completed_items} ({self.completed_items / self.total_items * 100:.1f}%)
-  ✗ Failed: {self.failed_items} ({self.failed_items / self.total_items * 100:.1f}%)
-  ⚠ Needs Review: {self.review_items} ({self.review_items / self.total_items * 100:.1f}%)
+  ✓ Completed: {self.completed_items} ({self._pct(self.completed_items):.1f}%)
+  ✗ Failed: {self.failed_items} ({self._pct(self.failed_items):.1f}%)
+  ⚠ Needs Review: {self.review_items} ({self._pct(self.review_items):.1f}%)
 
 Success Rate: {success_rate:.1f}%
 Total Duration: {self.total_duration:.1f}s
@@ -136,6 +139,17 @@ class OutputManager:
         self._create_directories()
 
         logger.info(f"OutputManager initialized: {self.output_dir}")
+
+    def use_batch_folder(self, batch_id: str):
+        """
+        Save this batch's audio under output/<batch_id>/<status>/ so batches that
+        reuse the same output_filename values never overwrite each other.
+        """
+        batch_dir = self.output_dir / batch_id
+        self.completed_dir = batch_dir / "completed"
+        self.failed_dir = batch_dir / "failed"
+        self.needs_review_dir = batch_dir / "needs_review"
+        self._create_directories()
 
     def _create_directories(self):
         """Create output directories if they don't exist."""

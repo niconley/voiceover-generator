@@ -85,6 +85,9 @@ speed setting compounds and makes delivery too fast or too slow.
 | Audio checks | PyDub | Clipping, silence ratio, distortion (ZCR) |
 
 ### 5️⃣ Output Organization
+Each batch gets its own folder, `output/<batch_id>/`, so batches that reuse
+file names never overwrite each other.
+
 | Folder | Condition |
 |--------|-----------|
 | `completed/` | Timing within tolerance and all checks passed |

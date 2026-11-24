@@ -11,6 +11,8 @@ import threading
 import uuid
 import zipfile
 import base64
+import io
+from urllib.parse import urlsplit
 
 import yaml
 from flask import Flask, render_template, request, jsonify, send_file, session, redirect, url_for
@@ -40,6 +42,12 @@ setup_logging(
     log_to_file=True
 )
 
+if not Config.SECRET_KEY_FROM_ENV:
+    app.logger.warning(
+        "SECRET_KEY is not set: using a random key, so everyone is logged out "
+        "whenever the server restarts. Set SECRET_KEY in the environment."
+    )
+
 # Configuration
 UPLOAD_FOLDER = Config.UPLOAD_FOLDER
 UPLOAD_FOLDER.mkdir(parents=True, exist_ok=True)
@@ -53,12 +61,14 @@ app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_SECURE'] = Config.SESSION_COOKIE_SECURE
 
 # Allowed file extensions
-ALLOWED_EXTENSIONS = {'csv', 'xlsx', 'xls'}
+ALLOWED_EXTENSIONS = {'csv', 'xlsx'}
 
 # Global storage for batch status (in production, use Redis or database)
 batch_status = {}
 batch_results = {}
 batch_models = {}  # Store model selection per batch
+batch_files = {}  # Uploaded input file path per batch (kept server-side, not in the cookie)
+batch_start_lock = threading.Lock()
 
 
 def allowed_file(filename):
@@ -125,8 +135,16 @@ def require_login():
 
 def safe_next_url(target):
     """Only allow redirects back to a path on this site (no open redirects)."""
-    if target and target.startswith('/') and not target.startswith('//') and '\\' not in target:
-        return target
+    if (
+        target
+        and target.startswith('/')
+        and not target.startswith('//')
+        and '\\' not in target
+        and not any(ord(ch) < 0x20 or ord(ch) == 0x7f for ch in target)
+    ):
+        parts = urlsplit(target)
+        if not parts.scheme and not parts.netloc:
+            return target
     return url_for('index')
 
 
@@ -194,7 +212,7 @@ def upload_file():
         return jsonify({'error': 'No file selected'}), 400
 
     if not allowed_file(file.filename):
-        return jsonify({'error': 'Invalid file type. Only CSV and Excel files allowed.'}), 400
+        return jsonify({'error': 'Invalid file type. Upload a .csv or .xlsx file.'}), 400
 
     try:
         # Save uploaded file
@@ -218,8 +236,8 @@ def upload_file():
                 'details': validation_result['errors']
             }), 400
 
-        # Store file path and model in session
-        session[f'file_{batch_id}'] = str(filepath)
+        # Remember the file and model for this batch on the server
+        batch_files[batch_id] = str(filepath)
         batch_models[batch_id] = model
 
         return jsonify({
@@ -238,11 +256,10 @@ def upload_file():
 def generate_batch(batch_id):
     """Start batch generation."""
     try:
-        # Get file path from session
-        filepath = session.get(f'file_{batch_id}')
+        filepath = batch_files.get(batch_id)
 
         if not filepath or not Path(filepath).exists():
-            return jsonify({'error': 'Batch file not found'}), 404
+            return jsonify({'error': 'Upload not found. The server may have restarted; please upload the file again.'}), 404
 
         # Get model from request body or stored selection
         data = request.get_json() or {}
@@ -250,6 +267,17 @@ def generate_batch(batch_id):
 
         # Initialize orchestrator with selected model
         orchestrator = VoiceoverOrchestrator(model=model)
+
+        # Only start each batch once (guards against double-clicks and re-sent requests)
+        with batch_start_lock:
+            if batch_id in batch_status:
+                return jsonify({'error': 'This batch has already been started'}), 409
+            batch_status[batch_id] = {
+                'status': 'processing',
+                'current': 0,
+                'total': 0,
+                'message': 'Starting...'
+            }
 
         # Start background processing
         thread = threading.Thread(
@@ -286,6 +314,8 @@ def get_results(batch_id):
         # Check if still processing
         if batch_id in batch_status:
             status = batch_status[batch_id]
+            if status.get('status') == 'error':
+                return jsonify({'error': status.get('message', 'Batch failed')}), 500
             return jsonify({
                 'processing': True,
                 'status': status
@@ -329,10 +359,10 @@ def download_folder(batch_id, folder):
         # Get the batch results for this specific batch
         batch = batch_results[batch_id]
 
-        # Create temporary zip file
-        zip_path = Path(app.config['UPLOAD_FOLDER']) / f'{batch_id}_{folder}.zip'
+        # Build the zip in memory so simultaneous downloads can't clobber each other
+        zip_buffer = io.BytesIO()
 
-        with zipfile.ZipFile(zip_path, 'w') as zipf:
+        with zipfile.ZipFile(zip_buffer, 'w') as zipf:
             # Only include files from this batch
             for result in batch.results:
                 # Skip if no audio path (failed before generation)
@@ -355,8 +385,9 @@ def download_folder(batch_id, folder):
                 if report_path.exists():
                     zipf.write(report_path, 'report.csv')
 
+        zip_buffer.seek(0)
         return send_file(
-            str(zip_path),
+            zip_buffer,
             as_attachment=True,
             download_name=f'{batch_id}_{folder}.zip',
             mimetype='application/zip'

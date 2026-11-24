@@ -116,7 +116,9 @@ class Config:
     FLASK_DEBUG = os.getenv("FLASK_DEBUG", "False").lower() == "true"
 
     # Session management
-    SECRET_KEY = os.getenv("SECRET_KEY", os.urandom(24).hex())
+    # An empty value (e.g. docker-compose passing an unset variable) counts as unset
+    SECRET_KEY_FROM_ENV = bool(os.getenv("SECRET_KEY"))
+    SECRET_KEY = os.getenv("SECRET_KEY") or os.urandom(24).hex()
 
     # Access control: one shared team password. If APP_PASSWORD is not set,
     # nobody can log in (the app fails closed rather than running unprotected).

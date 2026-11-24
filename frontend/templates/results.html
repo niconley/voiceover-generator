@@ -130,11 +130,11 @@
             try {
                 const response = await fetch(`/results/${batchId}`);
 
-                if (!response.ok) {
-                    throw new Error('Failed to load results');
-                }
+                const data = await response.json().catch(() => ({}));
 
-                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to load results');
+                }
 
                 if (data.processing) {
                     // Still processing, check back
@@ -150,6 +150,9 @@
                 document.getElementById('reviewCount').textContent = data.needs_review;
                 document.getElementById('failedCount').textContent = data.failed;
                 document.getElementById('totalCount').textContent = data.total_items;
+
+                // Failed items have no audio, so there is nothing to download for them
+                document.querySelector('.card-failed .card-link').style.display = 'none';
 
                 // Populate table
                 populateTable(allResults);
@@ -171,25 +174,38 @@
                 const row = document.createElement('tr');
                 row.className = `status-${result.status.replace('_', '-')}`;
 
-                const statusBadge = getStatusBadge(result.status);
-                const durationDiff = result.duration_diff !== null
-                    ? (result.duration_diff >= 0 ? '+' : '') + result.duration_diff.toFixed(2)
-                    : '-';
+                const addCell = (text, className) => {
+                    const td = document.createElement('td');
+                    td.textContent = text;
+                    if (className) td.className = className;
+                    row.appendChild(td);
+                    return td;
+                };
 
-                // Combine all issues with better formatting
-                let allIssues = result.issues || '';
+                const fmt = (n) => (n === null || n === undefined) ? '-' : n.toFixed(2) + 's';
+                const diff = result.duration_diff;
+                const diffText = (diff === null || diff === undefined)
+                    ? '-'
+                    : (diff >= 0 ? '+' : '') + diff.toFixed(2) + 's';
 
-                if (!allIssues || allIssues === '') allIssues = '<span style="color: #147272; font-weight:600;">✓ No issues</span>';
+                addCell(result.filename);
+                row.appendChild(getStatusBadge(result.status));
+                addCell(fmt(result.final_duration));
+                addCell(fmt(result.target_duration));
+                addCell(diffText, (diff > 0.3 || diff < -0.3) ? 'text-warning' : '');
+                addCell(String(result.attempts));
 
-                row.innerHTML = `
-                    <td>${result.filename}</td>
-                    <td>${statusBadge}</td>
-                    <td>${result.final_duration !== null ? result.final_duration.toFixed(2) + 's' : '-'}</td>
-                    <td>${result.target_duration !== null ? result.target_duration.toFixed(2) + 's' : '-'}</td>
-                    <td class="${result.duration_diff > 0.3 || result.duration_diff < -0.3 ? 'text-warning' : ''}">${durationDiff}s</td>
-                    <td>${result.attempts}</td>
-                    <td class="issues-cell">${allIssues}</td>
-                `;
+                // Failed items carry their reason in `error`, everything else in `issues`
+                const issuesText = [result.issues, result.status === 'failed' ? result.error : '']
+                    .filter(Boolean).join('; ');
+                const issuesCell = addCell(issuesText, 'issues-cell');
+                if (!issuesText) {
+                    const ok = document.createElement('span');
+                    ok.style.color = '#147272';
+                    ok.style.fontWeight = '600';
+                    ok.textContent = '✓ No issues';
+                    issuesCell.appendChild(ok);
+                }
 
                 tbody.appendChild(row);
             });
@@ -197,11 +213,17 @@
 
         function getStatusBadge(status) {
             const badges = {
-                'completed': '<span class="badge badge-success">Completed</span>',
-                'needs_review': '<span class="badge badge-warning">Needs Review</span>',
-                'failed': '<span class="badge badge-error">Failed</span>'
+                'completed': ['badge-success', 'Completed'],
+                'needs_review': ['badge-warning', 'Needs Review'],
+                'failed': ['badge-error', 'Failed']
             };
-            return badges[status] || status;
+            const td = document.createElement('td');
+            const span = document.createElement('span');
+            const [cls, label] = badges[status] || ['', status];
+            span.className = `badge ${cls}`;
+            span.textContent = label;
+            td.appendChild(span);
+            return td;
         }
 
         function filterResults(filter) {
