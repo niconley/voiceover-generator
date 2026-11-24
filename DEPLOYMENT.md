@@ -61,11 +61,6 @@ Quick guide to deploy the Voiceover Generator for team access.
    In Railway dashboard → Variables, add:
    ```
    ELEVENLABS_API_KEY=your_key_here
-   ANTHROPIC_API_KEY=your_key_here
-   GOOGLE_API_KEY=your_key_here
-   ENABLE_LLM_QC=true
-   ENABLE_AUDIO_QC=true
-   WHISPER_MODEL=base
    ```
 
 4. **Railway auto-deploys!** You'll get a URL like `https://voiceover-generator.up.railway.app`
@@ -103,11 +98,6 @@ Quick guide to deploy the Voiceover Generator for team access.
 3. **Set environment variables:**
    ```bash
    heroku config:set ELEVENLABS_API_KEY=your_key_here
-   heroku config:set ANTHROPIC_API_KEY=your_key_here
-   heroku config:set GOOGLE_API_KEY=your_key_here
-   heroku config:set ENABLE_LLM_QC=true
-   heroku config:set ENABLE_AUDIO_QC=true
-   heroku config:set WHISPER_MODEL=base
    ```
 
 4. **Deploy:**
@@ -194,7 +184,7 @@ Quick guide to deploy the Voiceover Generator for team access.
 
 ### Monitor usage:
 - Check logs in your deployment platform
-- Monitor API usage (ElevenLabs, Anthropic, Google)
+- Monitor ElevenLabs API usage
 - Set up alerts if needed
 
 ---
@@ -209,12 +199,9 @@ Quick guide to deploy the Voiceover Generator for team access.
 ### Slow performance
 - Upgrade to paid tier for faster instances
 - Consider reducing MAX_RETRIES in config
-- Use smaller Whisper model (tiny instead of base)
 
 ### Out of API credits
 - Check ElevenLabs character usage
-- Monitor Anthropic API usage
-- Google Gemini has generous free tier
 
 ---
 

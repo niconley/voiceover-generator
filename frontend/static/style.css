@@ -596,22 +596,6 @@ button:disabled {
     border: 1px solid #FECACA;
 }
 
-/* ── QC score indicators ─────────────────────────────────────────────── */
-.qc-pass {
-    color: var(--brand-teal-dark);
-    font-weight: 700;
-}
-
-.qc-flag {
-    color: var(--warning-color);
-    font-weight: 700;
-}
-
-.qc-fail {
-    color: var(--error-color);
-    font-weight: 700;
-}
-
 /* ── Error section ───────────────────────────────────────────────────── */
 .error-section {
     text-align: center;

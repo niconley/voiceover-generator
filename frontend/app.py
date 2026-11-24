@@ -97,6 +97,13 @@ def process_batch_async(batch_id, input_file, orchestrator):
         }
 
 
+def resolve_model(model):
+    """Return model if it's one we support, otherwise the V2 Multilingual default."""
+    if model in Config.SUPPORTED_MODELS:
+        return model
+    return Config.ELEVENLABS_MULTILINGUAL_MODEL
+
+
 @app.route('/')
 def index():
     """Main upload page."""
@@ -110,7 +117,7 @@ def upload_file():
         return jsonify({'error': 'No file provided'}), 400
 
     file = request.files['file']
-    model = request.form.get('model', 'eleven_multilingual_v2')
+    model = resolve_model(request.form.get('model'))
 
     if file.filename == '':
         return jsonify({'error': 'No file selected'}), 400
@@ -168,7 +175,7 @@ def generate_batch(batch_id):
 
         # Get model from request body or stored selection
         data = request.get_json() or {}
-        model = data.get('model') or batch_models.get(batch_id, 'eleven_multilingual_v2')
+        model = resolve_model(data.get('model') or batch_models.get(batch_id))
 
         # Initialize orchestrator with selected model
         orchestrator = VoiceoverOrchestrator(model=model)
@@ -318,14 +325,7 @@ def download_template(model):
     """Download CSV template for the selected model."""
     templates_dir = Path(__file__).parent.parent / 'input_templates'
 
-    # Map model to template file
-    template_map = {
-        'eleven_multilingual_v2': 'voiceover_template_v2.csv',
-        'eleven_v3': 'voiceover_template_v3.csv',
-        'eleven_turbo_v2_5': 'voiceover_template_v2.csv',  # Same as V2
-    }
-
-    template_file = template_map.get(model, 'voiceover_template_v2.csv')
+    template_file = Config.SUPPORTED_MODELS[resolve_model(model)]
     template_path = templates_dir / template_file
 
     if not template_path.exists():
@@ -387,7 +387,7 @@ def preview_duration():
         data = request.get_json()
         script_text = (data.get('script_text') or '').strip()
         voice_id = (data.get('voice_id') or '').strip()
-        model = data.get('model') or 'eleven_multilingual_v2'
+        model = resolve_model(data.get('model'))
 
         if not script_text:
             return jsonify({'error': 'Script text is required'}), 400

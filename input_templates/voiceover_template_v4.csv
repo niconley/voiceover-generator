@@ -1,0 +1,4 @@
+script_text,target_duration,voice_id,output_filename,stability,similarity_boost,style,speed,notes
+"[excited] Welcome to our amazing product! This revolutionary solution will completely transform the way you work.",10.0,EXAVITQu4vr4xnSDxMaL,welcome_v4.mp3,0.5,0.75,0.0,1.0,V4 audio tag: [excited] for energetic delivery
+"Limited time offer. [pause] Act now and save fifty percent on all premium plans.",8.0,EXAVITQu4vr4xnSDxMaL,promo_v4.mp3,0.5,0.75,0.0,1.0,V4: use [pause] for a beat (SSML <break> is not supported)
+"[warm] Thank you so much for choosing our service. We truly appreciate your business.",9.0,EXAVITQu4vr4xnSDxMaL,thank_you_v4.mp3,0.5,0.75,0.0,1.0,V4 audio tag: [warm] for a friendly tone

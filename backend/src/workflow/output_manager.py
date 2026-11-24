@@ -32,14 +32,6 @@ class GenerationResult:
     audio_path: Optional[Path] = None
     error: Optional[str] = None
 
-    # Audio Quality Control fields (Gemini audio analysis)
-    audio_qc_status: Optional[str] = None  # 'pass', 'flag', 'fail', or None if not checked
-    audio_qc_score: Optional[float] = None  # 0-100 audio quality score
-    audio_qc_issues: List[str] = field(default_factory=list)
-    audio_qc_strengths: List[str] = field(default_factory=list)
-    audio_qc_guidance: Optional[str] = None
-    audio_qc_suggested_tags: List[str] = field(default_factory=list)  # Tags used for retry
-
     def to_dict(self) -> Dict:
         """Convert to dictionary."""
         return {
@@ -52,13 +44,7 @@ class GenerationResult:
             'quality_passed': self.quality_passed,
             'issues': '; '.join(self.issues) if self.issues else '',
             'notes': self.notes,
-            'error': self.error,
-            'audio_qc_status': self.audio_qc_status,
-            'audio_qc_score': self.audio_qc_score,
-            'audio_qc_issues': self.audio_qc_issues,  # Keep as array for web UI
-            'audio_qc_strengths': self.audio_qc_strengths,  # Keep as array for web UI
-            'audio_qc_guidance': self.audio_qc_guidance,
-            'audio_qc_suggested_tags': self.audio_qc_suggested_tags  # Tags used for retry
+            'error': self.error
         }
 
 

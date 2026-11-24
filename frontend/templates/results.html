@@ -93,7 +93,6 @@
                                     <th>Target</th>
                                     <th>Diff</th>
                                     <th>Attempts</th>
-                                    <th>Audio QC</th>
                                     <th>Issues</th>
                                 </tr>
                             </thead>
@@ -176,46 +175,8 @@
                     ? (result.duration_diff >= 0 ? '+' : '') + result.duration_diff.toFixed(2)
                     : '-';
 
-                // Format Audio QC score with color coding
-                let audioQcScoreHtml = '-';
-                if (result.audio_qc_score !== null && result.audio_qc_score !== undefined) {
-                    const score = result.audio_qc_score;
-                    const qcStatus = result.audio_qc_status || 'unknown';
-                    let scoreClass = '';
-
-                    if (qcStatus === 'pass') {
-                        scoreClass = 'qc-pass';
-                    } else if (qcStatus === 'flag') {
-                        scoreClass = 'qc-flag';
-                    } else if (qcStatus === 'fail') {
-                        scoreClass = 'qc-fail';
-                    }
-
-                    audioQcScoreHtml = `<span class="${scoreClass}">${score}/100</span>`;
-                }
-
                 // Combine all issues with better formatting
                 let allIssues = result.issues || '';
-
-                // Add Audio QC issues
-                if (result.audio_qc_issues && result.audio_qc_issues.length > 0) {
-                    const audioIssues = result.audio_qc_issues.join('; ');
-                    if (allIssues && allIssues !== '-' && allIssues !== '') {
-                        allIssues = `${allIssues}<br><strong>Audio QC:</strong> ${audioIssues}`;
-                    } else {
-                        allIssues = `<strong>Audio QC:</strong> ${audioIssues}`;
-                    }
-                }
-
-                // Add Audio QC strengths (positive feedback)
-                if (result.audio_qc_strengths && result.audio_qc_strengths.length > 0) {
-                    const strengths = result.audio_qc_strengths.join('; ');
-                    if (allIssues && allIssues !== '-' && allIssues !== '') {
-                        allIssues = `${allIssues}<br><strong style="color: #10B981;">✓ Strengths:</strong> ${strengths}`;
-                    } else {
-                        allIssues = `<strong style="color: #147272;">✓ Strengths:</strong> ${strengths}`;
-                    }
-                }
 
                 if (!allIssues || allIssues === '') allIssues = '<span style="color: #147272; font-weight:600;">✓ No issues</span>';
 
@@ -226,7 +187,6 @@
                     <td>${result.target_duration !== null ? result.target_duration.toFixed(2) + 's' : '-'}</td>
                     <td class="${result.duration_diff > 0.3 || result.duration_diff < -0.3 ? 'text-warning' : ''}">${durationDiff}s</td>
                     <td>${result.attempts}</td>
-                    <td>${audioQcScoreHtml}</td>
                     <td class="issues-cell">${allIssues}</td>
                 `;
 

@@ -41,6 +41,7 @@
                             <select id="previewModel">
                                 <option value="eleven_multilingual_v2">V2 Multilingual</option>
                                 <option value="eleven_v3">V3 (Expressive)</option>
+                                <option value="eleven_v4">V4 (Newest)</option>
                                 <option value="eleven_turbo_v2_5">Turbo V2.5</option>
                             </select>
                         </div>
@@ -72,6 +73,7 @@
                     <select id="modelSelect" onchange="updateModelInfo()">
                         <option value="eleven_multilingual_v2" selected>V2 Multilingual (Stable, Predictable)</option>
                         <option value="eleven_v3">V3 (Expressive, Audio Tags)</option>
+                        <option value="eleven_v4">V4 (Newest, Audio Tags)</option>
                         <option value="eleven_turbo_v2_5">Turbo V2.5 (Fast)</option>
                     </select>
                     <div class="model-info" id="modelInfo">
@@ -140,6 +142,7 @@
         const modelInfo = {
             'eleven_multilingual_v2': '<strong>V2 Multilingual:</strong> Most stable and predictable output. Best for consistent commercial voiceovers. Supports 30+ languages.',
             'eleven_v3': '<strong>V3:</strong> Most expressive with audio tags support ([excited], [slower], etc.). More variation between generations.',
+            'eleven_v4': '<strong>V4:</strong> ElevenLabs\' newest model. Most natural delivery, 90+ languages, and audio tags ([excited], [whispers], [pause]) that it follows more reliably than V3. Use [pause] for breaks; SSML &lt;break&gt; tags are not supported.',
             'eleven_turbo_v2_5': '<strong>Turbo V2.5:</strong> Fastest generation. Good balance of speed and quality.'
         };
 
