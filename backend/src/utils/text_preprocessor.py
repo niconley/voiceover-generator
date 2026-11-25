@@ -209,7 +209,7 @@ class TextPreprocessor:
         # Match sequences of 3+ digits that aren't already formatted
         # Negative lookbehind for $ and letters
         text = re.sub(
-            r'(?<![,$\w])(\d{3,})(?![%\w])',
+            r'(?<![,$\w.])(\d{3,})(?![%\w]|\.\d)',
             replace_digit_sequence,
             text
         )

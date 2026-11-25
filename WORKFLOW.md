@@ -5,7 +5,7 @@
 ```mermaid
 flowchart TD
     subgraph INPUT["📥 INPUT"]
-        A[CSV/Excel Upload] --> B[Parse & Validate]
+        A[CSV/Excel Upload<br/>+ model choice] --> B[Parse & Validate]
         B --> C{Valid?}
         C -->|No| D[❌ Show Errors]
         C -->|Yes| E[Create Batch]
@@ -23,34 +23,21 @@ flowchart TD
         J --> K{Within ±0.3s<br/>of Target?}
         K -->|No| L{Retries<br/>Left?}
         L -->|Yes| M[Adjust Speed<br/>0.7x - 1.2x]
-        M --> N[Add Audio Tags<br/>slower/faster]
-        N --> H
+        M --> H
         L -->|No| O[Use Best Attempt]
-        K -->|Yes| P[Proceed to QC]
+        K -->|Yes| P[Quality Checks]
         O --> P
     end
 
-    subgraph QC["🔍 QUALITY CONTROL"]
-        P --> Q[Audio QC<br/>Clipping/Silence/Distortion]
-        Q --> R[Whisper Transcription]
-        R --> S[LLM Text QC<br/>Compare Script vs Transcript]
-        S --> T[Gemini Audio QC<br/>Tone/Pacing/Delivery]
-    end
-
-    subgraph AUDIOQC_RETRY["🔄 AUDIO QC RETRY"]
-        T --> U{Audio QC<br/>Passed?}
-        U -->|Fail + Has Tags| V{Retries<br/>Left?}
-        V -->|Yes| W[Add Suggested Tags<br/>excited/professional/etc]
-        W --> H
-        V -->|No| X[Continue to Status]
-        U -->|Pass/Flag| X
+    subgraph QC["🔍 QUALITY CHECKS"]
+        P --> Q[Clipping / Silence / Distortion]
     end
 
     subgraph OUTPUT["📤 OUTPUT"]
-        X --> Y{Final Status}
-        Y -->|All QC Pass| Z[✅ completed/]
-        Y -->|QC Issues| AA[⚠️ needs_review/]
-        Y -->|Failed| AB[❌ failed/]
+        Q --> Y{Final Status}
+        Y -->|Timing + checks pass| Z[✅ completed/]
+        Y -->|Timing missed or check failed| AA[⚠️ needs_review/]
+        Y -->|Generation failed| AB[❌ failed/]
         Z --> AC[Generate Report<br/>CSV + JSON]
         AA --> AC
         AB --> AC
@@ -61,8 +48,6 @@ flowchart TD
     style AA fill:#fff3e0
     style AB fill:#ffcdd2
     style H fill:#e8eaf6
-    style T fill:#fce4ec
-    style S fill:#f3e5f5
 ```
 
 ## Step-by-Step Breakdown
@@ -70,7 +55,7 @@ flowchart TD
 ### 1️⃣ Input Processing
 | Step | Description |
 |------|-------------|
-| Upload | User submits CSV/Excel file |
+| Upload | User picks an ElevenLabs model and submits a CSV/Excel file |
 | Parse | Extract script_text, target_duration, voice_id, etc. |
 | Validate | Check required columns, data types, value ranges |
 
@@ -87,43 +72,51 @@ flowchart TD
 |------|-------------|
 | Check | Is duration within ±0.3s of target? |
 | Adjust | Calculate new speed (0.7x - 1.2x range) |
-| Retry | Regenerate with adjusted speed + audio tags |
+| Retry | Regenerate with the adjusted speed setting |
 | Max 5 | Up to 5 attempts, keeps best result |
 
-### 4️⃣ Quality Control Pipeline
+Timing is controlled only through ElevenLabs' `speed` voice setting. The app
+never adds `[slower]`/`[faster]` tags itself, because combining tags with the
+speed setting compounds and makes delivery too fast or too slow.
+
+### 4️⃣ Quality Checks
 | Check | Tool | What It Does |
 |-------|------|--------------|
-| Audio QC | PyDub | Clipping, silence ratio, distortion (ZCR) |
-| Transcription | Whisper | Convert audio back to text |
-| Text QC | Claude | Compare transcript to original script |
-| Audio QC | Gemini | Analyze tone, pacing, delivery, artifacts |
+| Audio checks | PyDub | Clipping, silence ratio, distortion (ZCR) |
 
-### 5️⃣ Audio QC Retry (New!)
-| Step | Description |
-|------|-------------|
-| Check Result | Did Gemini Audio QC fail? |
-| Get Tags | Extract suggested tags (e.g., "excited, slower") |
-| Retry | Regenerate with those audio tags prepended |
+### 5️⃣ Output Organization
+Each batch gets its own folder, `output/<batch_id>/`, so batches that reuse
+file names never overwrite each other.
 
-### 6️⃣ Output Organization
 | Folder | Condition |
 |--------|-----------|
-| `completed/` | All QC checks passed |
-| `needs_review/` | QC flagged issues for human review |
+| `completed/` | Timing within tolerance and all checks passed |
+| `needs_review/` | Timing not achieved after max retries, or a check flagged an issue |
 | `failed/` | Generation failed completely |
 
 ---
 
-## Audio Tags Reference
+## Models
 
-ElevenLabs V3 supports these tags that can be prepended to scripts:
+| Model | ID | Notes |
+|-------|----|-------|
+| V2 Multilingual | `eleven_multilingual_v2` | Default. Most stable and predictable. |
+| V3 | `eleven_v3` | Expressive, audio tags. Stability snaps to 0.0 / 0.5 / 1.0. |
+| V4 | `eleven_v4` | Newest. Audio tags, 90+ languages, full 0.0-1.0 stability range. |
+| Turbo V2.5 | `eleven_turbo_v2_5` | Fastest generation. |
+
+## Audio Tags (V3 and V4)
+
+Write tags directly into `script_text` in your CSV. Examples:
 
 | Category | Tags |
 |----------|------|
-| **Emotion** | `[excited]` `[happy]` `[sad]` `[angry]` `[calm]` `[serious]` |
-| **Style** | `[professional]` `[conversational]` `[narrative]` `[friendly]` `[authoritative]` |
-| **Pacing** | `[slower]` `[faster]` |
-| **Other** | `[whisper]` |
+| **Emotion** | `[excited]` `[happy]` `[sad]` `[calm]` `[warm]` |
+| **Delivery** | `[whispers]` `[laughs]` `[sighs]` |
+| **Pauses (V4)** | `[pause]` `[long pause]` |
+
+V4 does not support SSML `<break>` tags; use `[pause]` instead. V2 and
+Turbo V2.5 don't support audio tags, so leave them out for those models.
 
 ---
 
@@ -134,21 +127,15 @@ Input: "Call 1-800-555-1234 today!" (target: 5.0s)
                     ↓
         Generate at speed 1.0x
                     ↓
-        Result: 3.2s (too short!)
+        Result: 4.2s (too short)
                     ↓
-        Adjust: speed = 1.0 × (3.2/5.0) = 0.64 → clamped to 0.7x
+        Adjust: speed = 1.0 × (4.2/5.0) = 0.84x
                     ↓
-        Retry with [slower] tag at 0.7x speed
+        Retry at 0.84x
                     ↓
-        Result: 4.8s ✓ (within tolerance)
+        Result: 4.9s ✓ (within tolerance)
                     ↓
-        Run QC checks...
-                    ↓
-        Gemini: "Sounds robotic" → suggests [friendly, conversational]
-                    ↓
-        Retry with [slower] [friendly] [conversational] tags
-                    ↓
-        Result: 4.9s ✓ + QC Pass ✓
+        Run quality checks ✓
                     ↓
         Save to completed/
 ```

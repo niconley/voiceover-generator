@@ -32,14 +32,6 @@ class GenerationResult:
     audio_path: Optional[Path] = None
     error: Optional[str] = None
 
-    # Audio Quality Control fields (Gemini audio analysis)
-    audio_qc_status: Optional[str] = None  # 'pass', 'flag', 'fail', or None if not checked
-    audio_qc_score: Optional[float] = None  # 0-100 audio quality score
-    audio_qc_issues: List[str] = field(default_factory=list)
-    audio_qc_strengths: List[str] = field(default_factory=list)
-    audio_qc_guidance: Optional[str] = None
-    audio_qc_suggested_tags: List[str] = field(default_factory=list)  # Tags used for retry
-
     def to_dict(self) -> Dict:
         """Convert to dictionary."""
         return {
@@ -52,13 +44,7 @@ class GenerationResult:
             'quality_passed': self.quality_passed,
             'issues': '; '.join(self.issues) if self.issues else '',
             'notes': self.notes,
-            'error': self.error,
-            'audio_qc_status': self.audio_qc_status,
-            'audio_qc_score': self.audio_qc_score,
-            'audio_qc_issues': self.audio_qc_issues,  # Keep as array for web UI
-            'audio_qc_strengths': self.audio_qc_strengths,  # Keep as array for web UI
-            'audio_qc_guidance': self.audio_qc_guidance,
-            'audio_qc_suggested_tags': self.audio_qc_suggested_tags  # Tags used for retry
+            'error': self.error
         }
 
 
@@ -90,6 +76,9 @@ class BatchResult:
         if result.final_duration:
             self.total_duration += result.final_duration
 
+    def _pct(self, count: int) -> float:
+        return count / self.total_items * 100 if self.total_items else 0.0
+
     def get_summary(self) -> str:
         """Get human-readable summary."""
         success_rate = (
@@ -106,9 +95,9 @@ Date: {self.timestamp.strftime('%Y-%m-%d %H:%M:%S')}
 Total Items: {self.total_items}
 
 Results:
-  ✓ Completed: {self.completed_items} ({self.completed_items / self.total_items * 100:.1f}%)
-  ✗ Failed: {self.failed_items} ({self.failed_items / self.total_items * 100:.1f}%)
-  ⚠ Needs Review: {self.review_items} ({self.review_items / self.total_items * 100:.1f}%)
+  ✓ Completed: {self.completed_items} ({self._pct(self.completed_items):.1f}%)
+  ✗ Failed: {self.failed_items} ({self._pct(self.failed_items):.1f}%)
+  ⚠ Needs Review: {self.review_items} ({self._pct(self.review_items):.1f}%)
 
 Success Rate: {success_rate:.1f}%
 Total Duration: {self.total_duration:.1f}s
@@ -150,6 +139,17 @@ class OutputManager:
         self._create_directories()
 
         logger.info(f"OutputManager initialized: {self.output_dir}")
+
+    def use_batch_folder(self, batch_id: str):
+        """
+        Save this batch's audio under output/<batch_id>/<status>/ so batches that
+        reuse the same output_filename values never overwrite each other.
+        """
+        batch_dir = self.output_dir / batch_id
+        self.completed_dir = batch_dir / "completed"
+        self.failed_dir = batch_dir / "failed"
+        self.needs_review_dir = batch_dir / "needs_review"
+        self._create_directories()
 
     def _create_directories(self):
         """Create output directories if they don't exist."""

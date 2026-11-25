@@ -61,11 +61,9 @@ Quick guide to deploy the Voiceover Generator for team access.
    In Railway dashboard → Variables, add:
    ```
    ELEVENLABS_API_KEY=your_key_here
-   ANTHROPIC_API_KEY=your_key_here
-   GOOGLE_API_KEY=your_key_here
-   ENABLE_LLM_QC=true
-   ENABLE_AUDIO_QC=true
-   WHISPER_MODEL=base
+   APP_PASSWORD=your_team_password
+   SECRET_KEY=a_long_random_value
+   SESSION_COOKIE_SECURE=true
    ```
 
 4. **Railway auto-deploys!** You'll get a URL like `https://voiceover-generator.up.railway.app`
@@ -103,11 +101,9 @@ Quick guide to deploy the Voiceover Generator for team access.
 3. **Set environment variables:**
    ```bash
    heroku config:set ELEVENLABS_API_KEY=your_key_here
-   heroku config:set ANTHROPIC_API_KEY=your_key_here
-   heroku config:set GOOGLE_API_KEY=your_key_here
-   heroku config:set ENABLE_LLM_QC=true
-   heroku config:set ENABLE_AUDIO_QC=true
-   heroku config:set WHISPER_MODEL=base
+   heroku config:set APP_PASSWORD=your_team_password
+   heroku config:set SECRET_KEY=a_long_random_value
+   heroku config:set SESSION_COOKIE_SECURE=true
    ```
 
 4. **Deploy:**
@@ -190,11 +186,11 @@ Quick guide to deploy the Voiceover Generator for team access.
 3. Set expectations:
    - Each voiceover takes 30-60s to generate
    - 5 retry attempts for timing accuracy
-   - Both Text QC and Audio QC will run
+   - Share the team password separately (not in the same message as the URL)
 
 ### Monitor usage:
 - Check logs in your deployment platform
-- Monitor API usage (ElevenLabs, Anthropic, Google)
+- Monitor ElevenLabs API usage
 - Set up alerts if needed
 
 ---
@@ -209,22 +205,34 @@ Quick guide to deploy the Voiceover Generator for team access.
 ### Slow performance
 - Upgrade to paid tier for faster instances
 - Consider reducing MAX_RETRIES in config
-- Use smaller Whisper model (tiny instead of base)
 
 ### Out of API credits
 - Check ElevenLabs character usage
-- Monitor Anthropic API usage
-- Google Gemini has generous free tier
 
 ---
 
 ## Security Notes
 
+### Password protection
+The whole app sits behind a single shared team password. Every page and API
+route requires login except `/health` (left open for load balancer / container
+health checks).
+
+| Variable | Required | Purpose |
+|----------|----------|---------|
+| `APP_PASSWORD` | Yes | The team password. If unset, the login page refuses everyone. |
+| `SECRET_KEY` | Yes | Signs the login cookie. Must be a long random value that stays the same across restarts and deploys, and the same on every instance if you run more than one. If it changes, everyone is logged out. |
+| `SESSION_COOKIE_SECURE` | Production | Set to `true` when served over HTTPS so the cookie is never sent over plain HTTP. |
+| `SESSION_LIFETIME_DAYS` | No | Days before users must log in again (default 30). |
+
+To change the password, update `APP_PASSWORD` and restart. To also log out
+everyone who is already signed in, change `SECRET_KEY` at the same time.
+
 ⚠️ **Important:**
 - Never commit `.env` file to git (already in `.gitignore`)
+- Store `APP_PASSWORD` and `SECRET_KEY` in your platform's secrets manager, not in the image
 - Rotate API keys regularly
-- Consider adding basic authentication for team access
-- Monitor for unusual usage patterns
+- Monitor for unusual usage patterns (failed logins are logged with the client IP)
 
 ---
 

@@ -14,7 +14,6 @@ from backend.src.api.retry_strategy import RetryStrategy
 from backend.src.audio.processor import AudioProcessor
 from backend.src.audio.quality_checker import QualityChecker
 from backend.src.verification.timing_adjuster import TimingAdjuster
-from backend.src.verification.gemini_audio_qc import GeminiAudioQC
 from backend.src.workflow.input_parser import InputParser, VoiceoverItem
 from backend.src.workflow.output_manager import OutputManager, GenerationResult, BatchResult
 from backend.src.utils.logger import ProgressLogger
@@ -85,19 +84,6 @@ class VoiceoverOrchestrator:
             tolerance=self.config.DURATION_TOLERANCE
         )
 
-        # Initialize Gemini audio quality checker if enabled (audio-based)
-        self.audio_qc_enabled = self.config.ENABLE_AUDIO_QC and self.config.GOOGLE_API_KEY
-        if self.audio_qc_enabled:
-            self.gemini_audio_qc = GeminiAudioQC(
-                api_key=self.config.GOOGLE_API_KEY,
-                model=self.config.GEMINI_MODEL
-            )
-            logger.info("Audio Quality Control (Gemini) enabled")
-        else:
-            self.gemini_audio_qc = None
-            if not self.config.GOOGLE_API_KEY:
-                logger.warning("Audio QC disabled: GOOGLE_API_KEY not set")
-
         self.input_parser = InputParser()
 
         self.output_manager = OutputManager(
@@ -137,6 +123,9 @@ class VoiceoverOrchestrator:
 
         # Use provided batch ID or generate one
         batch_id = batch_id or str(uuid.uuid4())[:8]
+
+        # Keep each batch's audio in its own folder
+        self.output_manager.use_batch_folder(batch_id)
 
         # Parse input file
         items, critical_errors = self.input_parser.parse_file(input_file)
@@ -263,43 +252,19 @@ class VoiceoverOrchestrator:
         best_attempt = None
         best_duration_diff = float('inf')
 
-        # Track audio tags suggested by QC for retry
-        qc_suggested_tags = []
-
         while attempt < max_retries:
             attempt += 1
 
             try:
-                # Modify script text with audio tags on retry attempts
-                adjusted_script_text = original_script_text
-                tags_to_add = []
-
-                # Only add audio tags for V3 model (V2 doesn't support them)
-                # Note: timing is controlled via the speed VoiceSettings parameter, NOT
-                # audio tags — mixing both causes compounding speed issues.
-                if attempt > 1 and self.model == 'eleven_v3':
-                    # Add QC-suggested tags from previous Audio QC failure
-                    if qc_suggested_tags:
-                        for tag in qc_suggested_tags:
-                            if tag not in tags_to_add:
-                                tags_to_add.append(tag)
-                        logger.info(f"Adding QC-suggested audio tags: {qc_suggested_tags}")
-
-                # Apply all tags to script (V3 only)
-                if tags_to_add and self.model == 'eleven_v3':
-                    tags_prefix = ' '.join(f'[{tag}]' for tag in tags_to_add)
-                    adjusted_script_text = f"{tags_prefix} {original_script_text}"
-                    logger.info(f"Script with audio tags: {tags_prefix} ...")
-
                 logger.info(
                     f"Attempt {attempt}/{max_retries} for {item.output_filename} "
                     f"(speed={current_speed:.2f})"
                 )
 
-                # Generate speech with speed parameter + timing guidance tags
+                # Generate speech; timing is controlled only via the speed parameter
                 audio_data = self.retry_strategy.execute_with_retry(
                     self.api_client.generate_speech,
-                    text=adjusted_script_text,
+                    text=original_script_text,
                     voice_id=voice_id,
                     stability=item.stability,
                     similarity_boost=item.similarity_boost,
@@ -347,57 +312,9 @@ class VoiceoverOrchestrator:
                         metadata={'target_duration': item.target_duration}
                     )
 
-                    # Run Gemini audio quality control if enabled
-                    audio_qc_result = None
-                    if self.audio_qc_enabled:
-                        logger.info("Running Gemini audio quality control")
-                        audio_qc_result = self.gemini_audio_qc.analyze_audio(
-                            audio_data=audio_data,
-                            original_script=item.script_text,
-                            context={
-                                'target_duration': item.target_duration,
-                                'notes': item.notes
-                            }
-                        )
-
-                        # Log Audio QC results
-                        logger.info(
-                            f"Audio QC: {audio_qc_result.status.upper()} "
-                            f"(score: {audio_qc_result.score}/100)"
-                        )
-                        if audio_qc_result.strengths:
-                            logger.info(f"Audio QC Strengths: {', '.join(audio_qc_result.strengths)}")
-                        if audio_qc_result.issues:
-                            logger.info(f"Audio QC Issues: {', '.join(audio_qc_result.issues)}")
-
-                    # Check if Audio QC failed and we should retry with suggested tags
-                    should_retry_for_audio_qc = False
-                    if audio_qc_result and audio_qc_result.status == 'fail':
-                        if attempt < max_retries and audio_qc_result.suggested_audio_tags:
-                            # Audio QC failed with suggestions - retry with those tags
-                            qc_suggested_tags = audio_qc_result.suggested_audio_tags
-                            logger.info(
-                                f"Audio QC failed with suggestions: {qc_suggested_tags}. "
-                                f"Retrying with audio tags (attempt {attempt + 1}/{max_retries})"
-                            )
-                            should_retry_for_audio_qc = True
-
-                    if should_retry_for_audio_qc:
-                        # Continue loop to retry with QC-suggested tags
-                        continue
-
                     # Determine final status based on all checks
                     if quality_report.passed:
                         status = 'completed'
-
-                        # Check Audio QC if available
-                        if audio_qc_result:
-                            if audio_qc_result.status == 'fail':
-                                status = 'needs_review'
-                                issues.append(f"Audio QC failed: {audio_qc_result.reasoning}")
-                            elif audio_qc_result.status == 'flag':
-                                status = 'needs_review'
-                                issues.append(f"Audio QC flagged for review: {audio_qc_result.reasoning}")
                     else:
                         status = 'needs_review'
                         if quality_report.issues:
@@ -422,13 +339,7 @@ class VoiceoverOrchestrator:
                         quality_passed=quality_report.passed,
                         issues=issues,
                         notes=item.notes or "",
-                        audio_path=audio_path,
-                        audio_qc_status=audio_qc_result.status if audio_qc_result else None,
-                        audio_qc_score=audio_qc_result.score if audio_qc_result else None,
-                        audio_qc_issues=audio_qc_result.issues if audio_qc_result else [],
-                        audio_qc_strengths=audio_qc_result.strengths if audio_qc_result else [],
-                        audio_qc_guidance=audio_qc_result.guidance if audio_qc_result else None,
-                        audio_qc_suggested_tags=qc_suggested_tags
+                        audio_path=audio_path
                     )
 
                 else:
@@ -469,65 +380,9 @@ class VoiceoverOrchestrator:
                         logger.warning(f"Max retries reached for {item.output_filename}")
 
                         if best_attempt:
-                            logger.info(
-                                f"Saving best attempt (#{best_attempt['attempt_number']}): "
-                                f"{best_attempt['actual_duration']:.2f}s "
-                                f"(off by {best_duration_diff:.2f}s)"
-                            )
-
-                            # Run quality checks on best attempt
-                            quality_report = self.quality_checker.run_all_checks(
-                                best_attempt['audio_data'],
-                                metadata={'target_duration': item.target_duration}
-                            )
-
-                            # Run Gemini audio QC if enabled
-                            audio_qc_result = None
-                            if self.audio_qc_enabled:
-                                logger.info("Running Gemini audio quality control on best attempt")
-                                audio_qc_result = self.gemini_audio_qc.analyze_audio(
-                                    audio_data=best_attempt['audio_data'],
-                                    original_script=item.script_text,
-                                    context={
-                                        'target_duration': item.target_duration,
-                                        'notes': item.notes
-                                    }
-                                )
-                                logger.info(
-                                    f"Audio QC: {audio_qc_result.status.upper()} "
-                                    f"(score: {audio_qc_result.score}/100)"
-                                )
-
-                            # Build issues list
-                            attempt_issues = [f"Max retries exceeded, timing not achieved (best: {best_duration_diff:.2f}s off)"]
-                            if quality_report.issues:
-                                attempt_issues.extend(quality_report.issues)
-
-                            # Save best attempt with needs_review status and script metadata
-                            audio_path = self.output_manager.save_audio(
-                                best_attempt['audio_data'],
-                                item.output_filename,
-                                status='needs_review',
-                                script_text=item.script_text
-                            )
-
-                            return GenerationResult(
-                                filename=item.output_filename,
-                                status='needs_review',
-                                attempts=attempt,
-                                final_duration=best_attempt['actual_duration'],
-                                target_duration=item.target_duration,
-                                duration_diff=best_attempt['actual_duration'] - item.target_duration,
-                                quality_passed=quality_report.passed,
-                                issues=attempt_issues,
-                                notes=item.notes or "",
-                                audio_path=audio_path,
-                                audio_qc_status=audio_qc_result.status if audio_qc_result else None,
-                                audio_qc_score=audio_qc_result.score if audio_qc_result else None,
-                                audio_qc_issues=audio_qc_result.issues if audio_qc_result else [],
-                                audio_qc_strengths=audio_qc_result.strengths if audio_qc_result else [],
-                                audio_qc_guidance=audio_qc_result.guidance if audio_qc_result else None,
-                                audio_qc_suggested_tags=qc_suggested_tags
+                            return self._save_best_attempt(
+                                item, best_attempt, best_duration_diff, attempt,
+                                reason=f"Max retries exceeded, timing not achieved (best: {best_duration_diff:.2f}s off)"
                             )
                         else:
                             # No successful attempts at all
@@ -543,6 +398,17 @@ class VoiceoverOrchestrator:
                 logger.error(f"Attempt {attempt} failed: {e}")
 
                 if attempt >= max_retries:
+                    # Last attempt errored: still deliver the closest earlier attempt if there is one
+                    if best_attempt:
+                        try:
+                            return self._save_best_attempt(
+                                item, best_attempt, best_duration_diff, attempt,
+                                reason=(f"Final attempt failed ({e}); kept best earlier attempt "
+                                        f"(#{best_attempt['attempt_number']}, {best_duration_diff:.2f}s off)")
+                            )
+                        except Exception as save_error:
+                            logger.error(f"Could not save best attempt: {save_error}")
+
                     # Failed after all retries
                     return GenerationResult(
                         filename=item.output_filename,
@@ -559,6 +425,50 @@ class VoiceoverOrchestrator:
             attempts=attempt,
             target_duration=item.target_duration,
             error="Unknown error occurred"
+        )
+
+    def _save_best_attempt(
+        self,
+        item: VoiceoverItem,
+        best_attempt: dict,
+        best_duration_diff: float,
+        attempts: int,
+        reason: str
+    ) -> GenerationResult:
+        """Save the attempt closest to the target duration as needs_review."""
+        logger.info(
+            f"Saving best attempt (#{best_attempt['attempt_number']}): "
+            f"{best_attempt['actual_duration']:.2f}s "
+            f"(off by {best_duration_diff:.2f}s)"
+        )
+
+        quality_report = self.quality_checker.run_all_checks(
+            best_attempt['audio_data'],
+            metadata={'target_duration': item.target_duration}
+        )
+
+        issues = [reason]
+        if quality_report.issues:
+            issues.extend(quality_report.issues)
+
+        audio_path = self.output_manager.save_audio(
+            best_attempt['audio_data'],
+            item.output_filename,
+            status='needs_review',
+            script_text=item.script_text
+        )
+
+        return GenerationResult(
+            filename=item.output_filename,
+            status='needs_review',
+            attempts=attempts,
+            final_duration=best_attempt['actual_duration'],
+            target_duration=item.target_duration,
+            duration_diff=best_attempt['actual_duration'] - item.target_duration,
+            quality_passed=quality_report.passed,
+            issues=issues,
+            notes=item.notes or "",
+            audio_path=audio_path
         )
 
     def validate_input(self, input_file: str) -> dict:

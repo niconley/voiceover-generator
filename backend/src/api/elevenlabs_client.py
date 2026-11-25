@@ -55,13 +55,15 @@ class ElevenLabsClient:
         """
         Generate speech from text with specified parameters.
 
-        V3 Audio Tags: Use inline tags in the text for emotion/delivery control.
+        Audio Tags (eleven_v3 and eleven_v4): Use inline tags in the text for
+        emotion/delivery control.
         Examples: [happy], [whispers], [nervously], [excited], [sad], [laughs]
+        eleven_v4 ignores SSML <break> tags; use [pause] or [long pause] instead.
 
         Args:
-            text: Text to convert to speech (can include [audio tags] for v3)
+            text: Text to convert to speech (can include [audio tags] for v3/v4)
             voice_id: ElevenLabs voice ID
-            model: Model ID (if None, uses default: eleven_v3)
+            model: Model ID (if None, uses this client's default_model)
             stability: Stability setting (0.0-1.0, default: 0.5)
             similarity_boost: Clarity + similarity boost (0.0-1.0, default: 0.75)
             style: Style exaggeration (0.0-1.0, default: 0.0)
@@ -87,7 +89,8 @@ class ElevenLabsClient:
 
         model = model or self.default_model
 
-        # V3 requires discrete stability values: 0.0, 0.5, or 1.0
+        # V3 requires discrete stability values: 0.0, 0.5, or 1.0.
+        # V4 accepts the full 0.0-1.0 range, so it is passed through unchanged.
         if model == "eleven_v3":
             # Round to nearest valid V3 stability value
             if stability < 0.25:
@@ -113,7 +116,7 @@ class ElevenLabsClient:
             )
 
             # Generate audio
-            # Note: V3 prompting uses inline audio tags like [happy], [whispers]
+            # Note: V3/V4 prompting uses inline audio tags like [happy], [whispers]
             # No separate prompt_text parameter needed
             request_params = {
                 "text": text,

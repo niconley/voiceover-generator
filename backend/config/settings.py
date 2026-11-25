@@ -40,12 +40,16 @@ class Config:
     # Alternative models
     ELEVENLABS_TURBO_MODEL = "eleven_turbo_v2_5"  # Faster, less expressive
     ELEVENLABS_MULTILINGUAL_MODEL = "eleven_multilingual_v2"  # 30+ languages
+    ELEVENLABS_V4_MODEL = "eleven_v4"  # Newest flagship: audio tags, 90+ languages
 
-    # Google Gemini API for audio-based quality control
-    # NOTE: google.generativeai package is deprecated - Audio QC disabled until migrated to google-genai
-    GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-    GEMINI_MODEL = "gemini-1.5-pro"  # Gemini 1.5 Pro (audio analysis)
-    ENABLE_AUDIO_QC = False  # Disabled - library deprecated
+    # Models users can pick in the web UI, mapped to their CSV template.
+    # Any other model ID sent by a client falls back to MULTILINGUAL.
+    SUPPORTED_MODELS = {
+        "eleven_multilingual_v2": "voiceover_template_v2.csv",
+        "eleven_v3": "voiceover_template_v3.csv",
+        "eleven_v4": "voiceover_template_v4.csv",
+        "eleven_turbo_v2_5": "voiceover_template_v2.csv",
+    }
 
     # ==================== Audio Settings ====================
     AUDIO_FORMAT = "mp3"
@@ -112,7 +116,16 @@ class Config:
     FLASK_DEBUG = os.getenv("FLASK_DEBUG", "False").lower() == "true"
 
     # Session management
-    SECRET_KEY = os.getenv("SECRET_KEY", os.urandom(24).hex())
+    # An empty value (e.g. docker-compose passing an unset variable) counts as unset
+    SECRET_KEY_FROM_ENV = bool(os.getenv("SECRET_KEY"))
+    SECRET_KEY = os.getenv("SECRET_KEY") or os.urandom(24).hex()
+
+    # Access control: one shared team password. If APP_PASSWORD is not set,
+    # nobody can log in (the app fails closed rather than running unprotected).
+    APP_PASSWORD = os.getenv("APP_PASSWORD")
+    SESSION_LIFETIME_DAYS = int(os.getenv("SESSION_LIFETIME_DAYS", "30"))
+    # Set to "true" when served over HTTPS so the login cookie is never sent over plain HTTP
+    SESSION_COOKIE_SECURE = os.getenv("SESSION_COOKIE_SECURE", "false").lower() == "true"
     UPLOAD_FOLDER = _data_root / "uploads"
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16 MB max file size
 
@@ -193,7 +206,6 @@ Quality Thresholds:
   - Max Clipping: {cls.MAX_CLIPPING_PERCENTAGE}%
   - Max Silence: {cls.MAX_SILENCE_RATIO * 100}%
 
-Audio QC: {"Enabled" if cls.ENABLE_AUDIO_QC else "Disabled"} (Gemini)
 Output Directory: {OUTPUT_DIR}
 Log Level: {cls.LOG_LEVEL}
         """.strip()
